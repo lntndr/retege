@@ -8,6 +8,8 @@
             "includePath": [
                 "c:/Users/andre/GitHub/retege/include",
                 "c:/Users/andre/GitHub/retege/src",
+                "C:/Users/andre/.platformio/lib/LiquidCrystal_ID887/src",
+                "C:/Users/andre/.platformio/lib/Bounce2_ID1106/src",
                 "C:/Users/andre/.platformio/packages/framework-arduino-avr/cores/arduino",
                 "C:/Users/andre/.platformio/packages/framework-arduino-avr/variants/standard",
                 "C:/Users/andre/.platformio/packages/framework-arduino-avr/libraries/EEPROM/src",
@@ -23,6 +25,8 @@
                 "path": [
                     "c:/Users/andre/GitHub/retege/include",
                     "c:/Users/andre/GitHub/retege/src",
+                    "C:/Users/andre/.platformio/lib/LiquidCrystal_ID887/src",
+                    "C:/Users/andre/.platformio/lib/Bounce2_ID1106/src",
                     "C:/Users/andre/.platformio/packages/framework-arduino-avr/cores/arduino",
                     "C:/Users/andre/.platformio/packages/framework-arduino-avr/variants/standard",
                     "C:/Users/andre/.platformio/packages/framework-arduino-avr/libraries/EEPROM/src",
