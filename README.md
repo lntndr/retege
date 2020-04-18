@@ -1,0 +1,2 @@
+# retege
+ Relé temporizzato geometrico
