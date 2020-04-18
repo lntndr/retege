@@ -31,9 +31,12 @@ unsigned int holdInterval = 0;
 int runningMode = 0;      //0 = linear single, 1 = geometric single, 2 = linear strip, 3 = geometric strip
 int runningStatus = 0;    //0 = setup, 1 = run, 2 = focus
 unsigned long lampFirstMillis = 0;
-float timeSpan = 10;
+float baseTimeSpan = 10;
 int stripNumber = 1;
+float stripDuration = 1;
 unsigned int geometricReason = 1;
+int geometricIndex = 0;
+
 float linStepSeconds = 1;
 
 // objects
@@ -43,7 +46,6 @@ Bounce * input = new Bounce[NUM_INPUTS];
 // functions
 bool checkButton(int i);
 float changeSpanLinearly(int i);
-float changeSpanGeometrically(int i, int q);
 
 void setup() {
   Serial.begin(9600);
@@ -92,10 +94,11 @@ void loop() {
         case 0:
           for (int i = 0; i < 4; i++) {
             if (checkButton(i)) {
-              timeSpan = changeSpanLinearly(i);
+              baseTimeSpan = changeSpanLinearly(i);
             }
           }
           break;
+
         case 1:
           for (int i = 0; i < 3; i=i+2) {
             if (checkButton(i)) {
@@ -108,13 +111,46 @@ void loop() {
           }
           for (int i = 1; i < 4; i=i+2) {
             if (checkButton(i)) {
-              timeSpan = changeSpanGeometrically(i-2,geometricReason);
+              geometricIndex = geometricIndex+(i-2);
+            }
+          }
+          break;
+
+        case 2:
+          for (int i = 0; i < 3; i=i+2) {
+            if (checkButton(i)) {
+              if (stripNumber+(i-1) > 0) {
+                stripNumber = stripNumber+(i-1);
+              } else {
+                geometricReason = 1;
+              }
+            }
+          }
+          for (int i = 1; i < 4; i=i+2) {
+            if (checkButton(i)) {
+              stripDuration = stripDuration+((i-2.)*0.1);
             }
           }
           break;
         case 3:
-          break;
-        case 4:
+          for (int i = 0; i < 3; i=i+2) {
+            if (checkButton(i)) {
+              if (stripNumber+(i-1) > 0) {
+                stripNumber = stripNumber+(i-1);
+              } else {
+                geometricReason = 1;
+              }
+            }
+          }
+          for (int i = 1; i < 4; i=i+2) {
+            if (checkButton(i)) {
+              if (geometricReason+(i-2) > 0) {
+                geometricReason = geometricReason+(i-2);
+              } else {
+                geometricReason = 1;
+              }
+            }
+          }
           break;
       }
       break;
@@ -138,12 +174,14 @@ void loop() {
   lcd.print(runningMode);
   lcd.setCursor(2,0);
   lcd.print(runningStatus);
-  lcd.setCursor(0,1);
+  lcd.setCursor(4,0);
   lcd.print(stripNumber);
-  lcd.setCursor(2,1);
+  lcd.setCursor(6,0);
   lcd.print(geometricReason);
-  lcd.setCursor(5,1);
-  lcd.print(timeSpan);
+  lcd.setCursor(8,0);
+  lcd.print(geometricIndex);
+  lcd.setCursor(0,1);
+  lcd.print(baseTimeSpan);
 
 }
 
@@ -172,25 +210,12 @@ float changeSpanLinearly(int j) {
   Serial.print(" ");
   Serial.print(k);
   Serial.print("\n");
-  if (timeSpan+k < 0) {
+  if (baseTimeSpan+k < 0) {
     y = 0;
-  } else if (timeSpan+k > 1000) {
+  } else if (baseTimeSpan+k > 1000) {
     y = 999.9;
   } else {
-    y= timeSpan+k;
+    y= baseTimeSpan+k;
   }
-  return y;
-}
-
-float changeSpanGeometrically(int i, int q) {
-  float y;
-  Serial.print(q);
-  Serial.print(" ");
-  Serial.print(i);
-  y = timeSpan*(1./q)*i;
-  Serial.print(" ");
-  Serial.print(y);
-  Serial.print("\n");
-  y = timeSpan+y;
   return y;
 }
