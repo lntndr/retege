@@ -103,14 +103,22 @@ void loop() {
       // runningMode independent
       if (checkButton(start)) {
         runningStatus = 1;
-        lampFirstMillis = millis();
       } else if (input[focus].read()) {
         runningStatus = 2;
-        lampFirstMillis = millis();
       }
+
       // runningMode dependent
+      if (runningStatus != 0) {
+        if (runningMode>1) {
+          timerValue=0;
+        }
+        lampFirstMillis = millis();
+        break;
+      }
+
       switch (runningMode) {
         case 0:
+          timerValue = baseTimeSpan;
           for (int i = 0; i < 4; i++) {
             if (checkButton(i)) {
               baseTimeSpan = changeSpanLinearly(i);
@@ -119,6 +127,7 @@ void loop() {
           break;
 
         case 1:
+          timerValue = baseTimeSpan*pow(2,(1.*geometricIndex)/(1.*geometricReason));
           for (int i = 0; i < 3; i=i+2) {
             if (checkButton(i)) {
               if (geometricReason+(i-1) > 0) {
@@ -184,13 +193,22 @@ void loop() {
       // shape output
       switch (runningMode) {
         case 0:
-
           break;
         case 1:
           break;
         case 2:
+          if (timerValue==0) {
+            timerValue = baseTimeSpan + (stripDuration*stripNumber);
+          } else {
+
+          }
           break;
         case 3:
+          if (timerValue==0) {
+            timerValue = baseTimeSpan*pow(2,(1.*stripNumber/(1.*geometricReason)));
+          } else {
+
+          }
           break;
       }
       break;
@@ -200,8 +218,13 @@ void loop() {
       if (!input[focus].read()) {
         runningStatus = 0;
         lampFirstMillis = 0;
+        holdInterval = 0;
       }
       digitalWrite(relayPin,HIGH);
+      if (millis()>lampFirstMillis+holdInterval*1000){ // buzz every second
+        tone(buzPin, 987, 100);
+        holdInterval++;
+      }
       break;
   }
 
@@ -218,7 +241,7 @@ void loop() {
   lcd.setCursor(0,1);
   lcd.print("BS");
   lcd.print(baseTimeSpan,1);
-  lcd.print("TV");
+  lcd.print(" TV");
   lcd.print(timerValue,1);
 }
 
