@@ -36,6 +36,7 @@ int stripNumber = 1;
 float stripDuration = 1;
 unsigned int geometricReason = 1;
 int geometricIndex = 0;
+float timerValue = 0;
 
 float linStepSeconds = 1;
 
@@ -49,6 +50,20 @@ float changeSpanLinearly(int i);
 
 void setup() {
   Serial.begin(9600);
+
+  pinMode(relayPin, OUTPUT);
+  pinMode(buzPin,   OUTPUT);
+
+  pinMode(p1Pin,    INPUT);
+  pinMode(p2Pin,    INPUT);
+  pinMode(startPin, INPUT);
+  pinMode(m1Pin,    INPUT);
+  pinMode(m2Pin,    INPUT);
+
+  pinMode(focusPin,    INPUT);
+  pinMode(linGeoPin,   INPUT);
+  pinMode(singStriPin, INPUT);
+
   for (int i = 0; i < NUM_INPUTS; i++) {
     input[i].attach(inputPins[i], INPUT);
     input[i].interval(25);
@@ -63,6 +78,9 @@ void loop() {
   // update buttons
   for (int i = 0; i < NUM_INPUTS; i++) {
     input[i].update();
+    if (input[i].rose()) {
+      lcd.clear();
+    }
   }
   // read runningMode
   if (!input[linGeo].read()) {
@@ -81,6 +99,7 @@ void loop() {
   // switch between runningStatus
   switch (runningStatus) {
     case 0:
+      digitalWrite(relayPin,LOW);
       // runningMode independent
       if (checkButton(start)) {
         runningStatus = 1;
@@ -154,35 +173,53 @@ void loop() {
           break;
       }
       break;
+
     case 1:
       // runningMode independent
       if (checkButton(start)) {
         runningStatus = 0;
         lampFirstMillis = 0;
       }
+      digitalWrite(relayPin,HIGH);
+      // shape output
+      switch (runningMode) {
+        case 0:
+
+          break;
+        case 1:
+          break;
+        case 2:
+          break;
+        case 3:
+          break;
+      }
       break;
+
     case 2:
       // runningMode independent
       if (!input[focus].read()) {
         runningStatus = 0;
         lampFirstMillis = 0;
       }
+      digitalWrite(relayPin,HIGH);
       break;
   }
 
   lcd.setCursor(0,0);
+  lcd.print("MS");
   lcd.print(runningMode);
-  lcd.setCursor(2,0);
   lcd.print(runningStatus);
-  lcd.setCursor(4,0);
+  lcd.print("ST");
   lcd.print(stripNumber);
-  lcd.setCursor(6,0);
+  lcd.print(stripDuration,1);
+  lcd.print("GM");
   lcd.print(geometricReason);
-  lcd.setCursor(8,0);
   lcd.print(geometricIndex);
   lcd.setCursor(0,1);
-  lcd.print(baseTimeSpan);
-
+  lcd.print("BS");
+  lcd.print(baseTimeSpan,1);
+  lcd.print("TV");
+  lcd.print(timerValue,1);
 }
 
 bool checkButton(int i) {
