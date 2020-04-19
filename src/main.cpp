@@ -4,6 +4,20 @@
 
 #define NUM_INPUTS 8
 
+#define LINEAR_SINGLE 0
+#define GEOMETRIC_SINGLE 1
+#define LINEAR_STRIP 2
+#define GEOMETRIC_STRIP 3
+
+#define SETUP 0
+#define EXPOSURE 1
+#define FOCUS 2
+
+#define START_BUTTON 4
+#define FOCUS_TOGGLE 5
+#define LINEAR_GEOMETRIC_TOGGLE 6
+#define SINGLE_STRIP_TOGGLE 7
+
 // pins
 /// buttons
 const int m1Pin = 2, m2Pin = 3, startPin = 4, p1Pin = 5, p2Pin = 6;
@@ -22,14 +36,14 @@ const int inputPins[NUM_INPUTS] = {m1Pin, m2Pin,
                                   p1Pin, p2Pin,
                                   startPin,
                                   focusPin, linGeoPin, singStriPin};
-const int start = 4, focus = 5, linGeo = 6, singStri = 7;
-
 const int holdMillis = 100;
 unsigned int holdInterval = 0;
 
 // state variables
-int runningMode = 0;      //0 = linear single, 1 = geometric single, 2 = linear strip, 3 = geometric strip
-int runningStatus = 0;    //0 = setup, 1 = run, 2 = focus
+int runningMode = LINEAR_SINGLE;
+  //0 = linear single, 1 = geometric single, 2 = linear strip, 3 = geometric strip
+int runningStatus = SETUP;
+  //0 = setup, 1 = exposure, 2 = focus
 unsigned long lampFirstMillis = 0;
 float baseTimeSpan = 10;
 int stripNumber = 1;
@@ -37,7 +51,7 @@ float stripDuration = 1;
 unsigned int geometricReason = 1;
 int geometricIndex = 0;
 float timerValue = 0;
-
+float nextTimerValue = 0;
 float linStepSeconds = 1;
 
 // objects
@@ -83,41 +97,44 @@ void loop() {
     }
   }
   // read runningMode
-  if (!input[linGeo].read()) {
-    if (!input[singStri].read()) {
-      runningMode = 0;
+  if (!input[LINEAR_GEOMETRIC_TOGGLE].read()) {
+    if (!input[SINGLE_STRIP_TOGGLE].read()) {
+      runningMode = LINEAR_SINGLE;
     } else {
-      runningMode = 1;
+      runningMode = LINEAR_STRIP;
     }
   } else {
-    if (!input[singStri].read()) {
-      runningMode = 2;
+    if (!input[SINGLE_STRIP_TOGGLE].read()) {
+      runningMode = GEOMETRIC_SINGLE;
     } else {
-      runningMode = 3;
+      runningMode = GEOMETRIC_STRIP;
     }
   }
   // switch between runningStatus
   switch (runningStatus) {
-    case 0:
+    case SETUP:
       digitalWrite(relayPin,LOW);
       // runningMode independent
-      if (checkButton(start)) {
-        runningStatus = 1;
-      } else if (input[focus].read()) {
-        runningStatus = 2;
+      if (checkButton(START_BUTTON)) {
+        runningStatus = EXPOSURE;
+      } else if (input[FOCUS_TOGGLE].read()) {
+        runningStatus = FOCUS;
       }
 
       // runningMode dependent
-      if (runningStatus != 0) {
-        if (runningMode>1) {
-          timerValue=0;
+      if (runningStatus != SETUP) {
+        // timerValue is evaluated during setup for single exposures
+        if (runningMode == LINEAR_STRIP) {
+          timerValue=baseTimeSpan+(stripDuration*stripNumber);
+        } else if (runningMode == GEOMETRIC_STRIP) {
+          timerValue=baseTimeSpan*pow(2,(1.*stripNumber)/(1.*geometricReason));
         }
         lampFirstMillis = millis();
         break;
       }
 
       switch (runningMode) {
-        case 0:
+        case LINEAR_SINGLE:
           timerValue = baseTimeSpan;
           for (int i = 0; i < 4; i++) {
             if (checkButton(i)) {
@@ -126,7 +143,7 @@ void loop() {
           }
           break;
 
-        case 1:
+        case GEOMETRIC_SINGLE:
           timerValue = baseTimeSpan*pow(2,(1.*geometricIndex)/(1.*geometricReason));
           for (int i = 0; i < 3; i=i+2) {
             if (checkButton(i)) {
@@ -144,7 +161,7 @@ void loop() {
           }
           break;
 
-        case 2:
+        case LINEAR_STRIP:
           for (int i = 0; i < 3; i=i+2) {
             if (checkButton(i)) {
               if (stripNumber+(i-1) > 0) {
@@ -160,7 +177,7 @@ void loop() {
             }
           }
           break;
-        case 3:
+        case GEOMETRIC_STRIP:
           for (int i = 0; i < 3; i=i+2) {
             if (checkButton(i)) {
               if (stripNumber+(i-1) > 0) {
@@ -183,66 +200,56 @@ void loop() {
       }
       break;
 
-    case 1:
+    case EXPOSURE:
       // runningMode independent
-      if (checkButton(start)) {
+      if (checkButton(START_BUTTON)) {
         runningStatus = 0;
         lampFirstMillis = 0;
+        break;
       }
       digitalWrite(relayPin,HIGH);
-      // shape output
-      switch (runningMode) {
-        case 0:
-          break;
-        case 1:
-          break;
-        case 2:
-          if (timerValue==0) {
-            timerValue = baseTimeSpan + (stripDuration*stripNumber);
-          } else {
-
+      // runningMode dependent
+      if (timerValue > 0) {
+        switch(runningMode) {
+          case LINEAR_SINGLE:
+            break;
+          case GEOMETRIC_SINGLE:
+            break;
+          case LINEAR_STRIP:
+            break;
+          case GEOMETRIC_STRIP:
+            break;
+        }
+      } else { 
+        switch(runningMode) {
+          case LINEAR_SINGLE:
+            break;
+          case GEOMETRIC_SINGLE:
+            break;
+          case LINEAR_STRIP:
+            break;
+          case GEOMETRIC_STRIP:
+            break;
           }
-          break;
-        case 3:
-          if (timerValue==0) {
-            timerValue = baseTimeSpan*pow(2,(1.*stripNumber/(1.*geometricReason)));
-          } else {
-
-          }
-          break;
       }
       break;
 
-    case 2:
+    case FOCUS:
       // runningMode independent
-      if (!input[focus].read()) {
+      if (!input[FOCUS_TOGGLE].read()) {
         runningStatus = 0;
         lampFirstMillis = 0;
         holdInterval = 0;
+        break;
       }
       digitalWrite(relayPin,HIGH);
-      if (millis()>lampFirstMillis+holdInterval*1000){ // buzz every second
+      if (millis()>=lampFirstMillis+holdInterval*1000){ // buzz every second
         tone(buzPin, 987, 100);
         holdInterval++;
       }
       break;
-  }
+    }
 
-  lcd.setCursor(0,0);
-  lcd.print("MS");
-  lcd.print(runningMode);
-  lcd.print(runningStatus);
-  lcd.print("ST");
-  lcd.print(stripNumber);
-  lcd.print(stripDuration,1);
-  lcd.print("GM");
-  lcd.print(geometricReason);
-  lcd.print(geometricIndex);
-  lcd.setCursor(0,1);
-  lcd.print("BS");
-  lcd.print(baseTimeSpan,1);
-  lcd.print(" TV");
-  lcd.print(timerValue,1);
 }
 
 bool checkButton(int i) {
