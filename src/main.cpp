@@ -335,16 +335,15 @@ bool pressHoldButton(int i) {
     y = 0;
   }
 
-  if (input[i].read() && input[i].duration()>8000) {
+  if (input[i].read() && input[i].duration()>4000) {
     holdMillis = 20;
-  } else if (input[i].read() && input[i].duration()>4000) {
+  } else if (input[i].read() && input[i].duration()>3000) {
     holdMillis = 40;
   } else if (input[i].read() && input[i].duration()>2000) {
     holdMillis = 60;
   } else if (input[i].read() && input[i].duration()>1000) {
     holdMillis = 80;
   } 
-
 
   if (input[i].fell()) {
     holdInterval=0;
