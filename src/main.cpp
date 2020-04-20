@@ -1,8 +1,6 @@
 #include <Arduino.h>
-#include <bounce2.h>
-#include <Liquidcrystal.h>
-
-#define NUM_INPUTS 8
+#include <Bounce2.h>
+#include <LiquidCrystal.h>
 
 #define LINEAR_SINGLE 0
 #define GEOMETRIC_SINGLE 1
@@ -25,11 +23,12 @@ const int relayPin = 13;
 const int buzPin = 19;
 // objects
 LiquidCrystal lcd(7, 8, 9, 10, 11, 12);
-Bounce * input = new Bounce[NUM_INPUTS];
+Bounce * input = new Bounce[8];
 
 // functions declarations
 bool pressHoldButton(int i);
 float changeSpanLinearly(int j, float base);
+unsigned long stripRing(byte mode, unsigned long lampRefer, float stripDuration, float baseTimeSpan, unsigned long ringInterval, byte geometricReason);
 
 void setup() {
   // local variables
@@ -38,10 +37,10 @@ void setup() {
   /// toggles
   const int focusPin = 14, linGeoPin = 15, singStriPin = 16;
   /// bounce2 aux array
-  const int inputPins[NUM_INPUTS] = {m1Pin, m2Pin,
-                                  p1Pin, p2Pin,
-                                  startPin,
-                                  focusPin, linGeoPin, singStriPin};
+  const int inputPins[8] = {m1Pin, m2Pin,
+                            p1Pin, p2Pin,
+                            startPin,
+                            focusPin, linGeoPin, singStriPin};
 
   // declarations
   pinMode(relayPin, OUTPUT);
@@ -59,7 +58,7 @@ void setup() {
 
   // run things
 
-  for (int i = 0; i < NUM_INPUTS; i++) {
+  for (int i = 0; i < 8; i++) {
     input[i].attach(inputPins[i], INPUT);
     input[i].interval(40);
   }
@@ -67,6 +66,8 @@ void setup() {
   lcd.print("main.cpp");
   delay(1500);
   lcd.clear();
+
+  Serial.begin(9600);
 }
 
 void loop() {
@@ -74,22 +75,22 @@ void loop() {
   static unsigned long ringInterval = 0;
   static unsigned long displayInterval = 0;
   // 0 = linear single, 1 = geometric single, 2 = linear strip, 3 = geometric strip
-  static int runningMode = LINEAR_SINGLE;
-  static int newRunningMode = LINEAR_SINGLE;
+  static byte runningMode = LINEAR_SINGLE;
+  static byte newRunningMode = LINEAR_SINGLE;
   // 0 = setup, 1 = exposure, 2 = focus
-  static int runningStatus = SETUP;
+  static byte runningStatus = SETUP;
   static unsigned long lampFirstMillis = 0;
   static float baseTimeSpan = 10;
-  static int stripNumber = 6;
+  static byte stripNumber = 6;
   static float stripDuration = 5;
-  static unsigned int geometricReason = 3;
-  static int geometricIndex = 0;
+  static byte geometricReason = 3;
+  static byte geometricIndex = 0;
   static float timerDisplay = 0;
-  static long rollingTime = 0;
+  static unsigned long rollingTime = 0;
 
   // run things
   // update buttons
-  for (int i = 0; i < NUM_INPUTS; i++) {
+  for (int i = 0; i < 8; i++) {
     input[i].update();
     if (input[i].rose()) {
       lcd.clear();
@@ -132,7 +133,7 @@ void loop() {
         runningStatus = FOCUS;
       }
       if (runningStatus != SETUP) {
-        rollingTime=timerDisplay*1000;
+        rollingTime=timerDisplay*1000+10; // 10 ms buffer allows to use unsigned long
         lampFirstMillis = millis();
         lcd.clear();
         break;
@@ -248,7 +249,7 @@ void loop() {
 
     case EXPOSURE:
       // check if runningMode has to be changed
-      if (input[START_BUTTON].rose() || rollingTime <= 0) {
+      if (input[START_BUTTON].rose() || rollingTime <= 10) { // 10 ms buffer allows to use unsigned long
         runningStatus = SETUP;
         ringInterval = 0;
         rollingTime = 0;
@@ -268,24 +269,8 @@ void loop() {
           }
           break;
         case LINEAR_STRIP:
-          if (millis()>= lampFirstMillis - 250 + baseTimeSpan*1000 + stripDuration*1000*ringInterval ) {
-            tone(buzPin, 659, 150);
-          }
-          if (millis()>= lampFirstMillis + baseTimeSpan*1000 + stripDuration*1000*ringInterval ) {
-            tone(buzPin, 880, 150);
-            ringInterval++;
-          } 
-          break;
         case GEOMETRIC_STRIP:
-          if (millis()>= lampFirstMillis - 250 +
-                         baseTimeSpan*1000*pow(2,(1.*ringInterval)/(1.*geometricReason))) {
-            tone(buzPin, 659, 50);
-          } 
-          if (millis()>= lampFirstMillis +
-                         baseTimeSpan*1000*pow(2,(1.*ringInterval)/(1.*geometricReason))) {
-            tone(buzPin, 880, 150);
-            ringInterval++;
-          }
+            ringInterval = stripRing(runningMode, lampFirstMillis, stripDuration, baseTimeSpan, ringInterval, geometricReason);
           break;
       }
 
@@ -367,4 +352,25 @@ float changeSpanLinearly(int j, float base) {
     y= base+k;
   }
   return y;
+}
+
+unsigned long stripRing(byte mode, unsigned long lampRefer, float stripDuration, float baseTimeSpan, unsigned long ringInterval, byte geometricReason) {
+    float rollingInterval;
+
+    if (mode == LINEAR_STRIP) {
+      rollingInterval = baseTimeSpan*1000 + stripDuration*1000*ringInterval;
+    } else if (mode == GEOMETRIC_STRIP) {
+      rollingInterval = baseTimeSpan*1000*pow(2,(1.*ringInterval)/(1.*geometricReason));
+    }
+
+    if (millis()>= lampRefer - 260 + rollingInterval ) {
+      tone(buzPin, 659, 150);
+    }
+
+    if (millis() >= lampRefer - 10 + rollingInterval) {
+      tone(buzPin, 880, 150);
+      ringInterval++;
+    }
+    return ringInterval;
+    
 }
