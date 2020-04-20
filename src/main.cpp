@@ -231,22 +231,24 @@ void loop() {
           }
           break;
         case LINEAR_STRIP:
-          if (millis()>= lampFirstMillis - 300 + baseTimeSpan*1000 + stripDuration*1000*holdInterval ) {
+          if (millis()>= lampFirstMillis - 250 + baseTimeSpan*1000 + stripDuration*1000*holdInterval ) {
             tone(buzPin, 659, 150);
-            delay(300);
+          }
+          if (millis()>= lampFirstMillis + baseTimeSpan*1000 + stripDuration*1000*holdInterval ) {
             tone(buzPin, 880, 150);
             holdInterval++;
           } 
           break;
         case GEOMETRIC_STRIP:
-          if (millis()>= lampFirstMillis - 300 +
-                         baseTimeSpan*1000 +
+          if (millis()>= lampFirstMillis - 250 +
                          baseTimeSpan*1000*pow(2,(1.*holdInterval)/(1.*geometricReason))) {
-            tone(buzPin, 659, 150);
-            delay(300);
+            tone(buzPin, 659, 50);
+          } 
+          if (millis()>= lampFirstMillis +
+                         baseTimeSpan*1000*pow(2,(1.*holdInterval)/(1.*geometricReason))) {
             tone(buzPin, 880, 150);
             holdInterval++;
-          } 
+          }
           break;
       }
 
