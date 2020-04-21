@@ -65,7 +65,7 @@ void setup() {
   }
   lcd.begin(16,2);
   lcd.print("retege v0.1");
-  delay(1500);
+  delay(2000);
   lcd.clear();
 
   Serial.begin(9600);
@@ -329,7 +329,6 @@ void loop() {
       }
       break;
   }
-
 }
 
 bool pressHoldButton(int i) {
@@ -392,11 +391,10 @@ unsigned long stripRinger(byte mode, unsigned long lampRefer, float stripDuratio
   }
 
   if (millis() >= lampRefer + rollingInterval) {
-    tone(buzPin, 880, 150);
+    tone(buzPin, 880, 100);
     ringCount++;
   }
   return ringCount;
-    
 }
 
 unsigned long metronome(unsigned long lampRefer, unsigned long ringCount) {
