@@ -24,6 +24,7 @@ const int buzPin = 19;
 // objects
 LiquidCrystal lcd(7, 8, 9, 10, 11, 12);
 Bounce * input = new Bounce[8];
+bool runningStatusChanged = 1;
 
 // functions declarations
 bool pressHoldButton(int i);
@@ -31,6 +32,7 @@ float changeSpanLinearly(int j, float base);
 unsigned long stripRinger(byte mode, unsigned long lampRefer, float stripDuration, float baseTimeSpan, unsigned long ringCount, byte reason);
 unsigned long metronome(unsigned long lampRefer, unsigned long ringCount);
 byte updateRunningMode(bool linGeo, bool sinStrip);
+byte updateRunningStatus(byte runningStatus, bool startRose, bool focusHigh, unsigned long rollingTime);
 
 void setup() {
   // local variables
@@ -75,7 +77,6 @@ void setup() {
 void loop() {
   // local variables
   static unsigned long ringCount = 0;
-  static unsigned long displayCount = 0;
   // 0 = linear single, 1 = geometric single, 2 = linear strip, 3 = geometric strip
   static byte runningMode = LINEAR_SINGLE;
   // 0 = setup, 1 = exposure, 2 = focus
@@ -97,26 +98,20 @@ void loop() {
     }
   }
 
+  runningStatus = updateRunningStatus(runningStatus, input[START_BUTTON].rose(), input[FOCUS_TOGGLE].read(), rollingTime);
+
   switch (runningStatus) {
     case SETUP:
-      runningMode = updateRunningMode(input[LINEAR_GEOMETRIC_TOGGLE].read(),input[SINGLE_STRIP_TOGGLE].read());
+      
       // turn off the lamp
       digitalWrite(relayPin,LOW);
-
-      // READ BUTTONS 
-      // check if runningStatus has to be changed
-      if (input[START_BUTTON].rose()) {
-        runningStatus = EXPOSURE;
-      } else if (input[FOCUS_TOGGLE].read()) {
-        runningStatus = FOCUS;
-      }
-      if (runningStatus != SETUP) {
-        rollingTime=evalTimeSpan;
-        lampFirstMillis = millis() + 10; // 10 ms buffer allows to use unsigned long
+      runningMode = updateRunningMode(input[LINEAR_GEOMETRIC_TOGGLE].read(),input[SINGLE_STRIP_TOGGLE].read());
+      if (runningStatusChanged) {
+        ringCount = 0;
+        rollingTime = 0;
+        lampFirstMillis = 0;
         lcd.clear();
-        break;
       }
-
       // update evalTimeSpan
       switch (runningMode) {
         case LINEAR_SINGLE:
@@ -238,14 +233,10 @@ void loop() {
       break; // end SETUP case
 
     case EXPOSURE:
-      // check if runningMode has to be changed
-      if (input[START_BUTTON].rose() || rollingTime <= 10) { // 10 ms buffer allows to use unsigned long
-        runningStatus = SETUP;
-        ringCount = 0;
-        rollingTime = 0;
-        lampFirstMillis = 0;
+      if (runningStatusChanged) {
+        rollingTime=evalTimeSpan;
+        lampFirstMillis = millis() + 10; // 10 ms buffer allows to use unsigned long
         lcd.clear();
-        break;
       }
       digitalWrite(relayPin,HIGH);
       rollingTime = (lampFirstMillis+(evalTimeSpan)-millis());
@@ -279,26 +270,19 @@ void loop() {
       break; // end EXPOSURE case
 
     case FOCUS:
-      // check if state is changed
-      if (!input[FOCUS_TOGGLE].read()) {
-        runningStatus = 0;
-        lampFirstMillis = SETUP;
-        ringCount = 0;
-        displayCount = 0;
+      if (runningStatusChanged) {
+        lampFirstMillis = millis() + 10; // 10 ms buffer allows to use unsigned long
         lcd.clear();
-        break;
-      } 
-
+      }
       digitalWrite(relayPin,HIGH);
       // play ringer
       ringCount = metronome(lampFirstMillis,ringCount);
       // display output
       lcd.setCursor(0,0);
       lcd.print("FOCUS");
-      if (millis()>=lampFirstMillis+displayCount*100) {
-        lcd.setCursor(0,1);
+      lcd.setCursor(0,1);
+      if (millis()>=lampFirstMillis) {
         lcd.print((millis()-lampFirstMillis)/1000.,1);
-        displayCount++;
       }
       break;
   }
@@ -312,10 +296,6 @@ bool pressHoldButton(int i) {
   if(input[i].read() && input[i].duration()>=holdInterval*(holdMillis)) {
     y = 1;
     holdInterval++;
-    Serial.print(holdMillis);
-    Serial.print(" ");
-    Serial.print(input[i].duration());
-    Serial.print("\n");
   } else {
     y = 0;
   }
@@ -396,3 +376,24 @@ byte updateRunningMode(bool linGeo, bool sinStrip) {
   return newRunningMode;
 }
 
+byte updateRunningStatus(byte runningStatus, bool startRose, bool focusHigh, unsigned long rollingTime) {
+  byte newRunningStatus;
+  if (runningStatus==2 && !focusHigh) {
+    newRunningStatus = 0;
+  } else if (runningStatus < 2) {
+    if (startRose) {
+      newRunningStatus = !runningStatus;
+    } else if (rollingTime < 10 && rollingTime > 0) {
+      newRunningStatus = 0;
+    } else if (focusHigh) {
+      newRunningStatus = 2; 
+    }
+  }
+  if (runningStatus != newRunningStatus) {
+    runningStatusChanged = 1;
+    runningStatus = newRunningStatus;
+  } else {
+    runningStatusChanged = 0;
+  }
+  return runningStatus;
+}
