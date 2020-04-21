@@ -30,6 +30,7 @@ bool pressHoldButton(int i);
 float changeSpanLinearly(int j, float base);
 unsigned long stripRinger(byte mode, unsigned long lampRefer, float stripDuration, float baseTimeSpan, unsigned long ringCount, byte reason);
 unsigned long metronome(unsigned long lampRefer, unsigned long ringCount);
+byte updateRunningMode(bool linGeo, bool sinStrip);
 
 void setup() {
   // local variables
@@ -77,7 +78,6 @@ void loop() {
   static unsigned long displayCount = 0;
   // 0 = linear single, 1 = geometric single, 2 = linear strip, 3 = geometric strip
   static byte runningMode = LINEAR_SINGLE;
-  static byte newRunningMode = LINEAR_SINGLE;
   // 0 = setup, 1 = exposure, 2 = focus
   static byte runningStatus = SETUP;
   static unsigned long lampFirstMillis = 0;
@@ -97,36 +97,9 @@ void loop() {
     }
   }
 
-  // read runningMode
-  if (!input[LINEAR_GEOMETRIC_TOGGLE].read()) {
-    if (!input[SINGLE_STRIP_TOGGLE].read()) {
-      newRunningMode = LINEAR_SINGLE;
-    } else {
-      newRunningMode = LINEAR_STRIP;
-    }
-  } else {
-    if (!input[SINGLE_STRIP_TOGGLE].read()) {
-      newRunningMode = GEOMETRIC_SINGLE;
-    } else {
-      newRunningMode = GEOMETRIC_STRIP;
-    }
-  }
-
-  // if runningMode has changed, act as consequence
-  // - nothing happens in SETUP and FOCUS
-  // - EXPOSURE is instantly reverted to SETUP
-  if (runningMode != newRunningMode && runningStatus != 2) {
-    lcd.clear();
-    lampFirstMillis = 0;
-    displayCount = 0;
-    ringCount = 0;
-    runningMode = newRunningMode;
-    runningStatus = SETUP;
-  }
-
-  // switch between runningStatus
   switch (runningStatus) {
     case SETUP:
+      runningMode = updateRunningMode(input[LINEAR_GEOMETRIC_TOGGLE].read(),input[SINGLE_STRIP_TOGGLE].read());
       // turn off the lamp
       digitalWrite(relayPin,LOW);
 
@@ -404,3 +377,22 @@ unsigned long metronome(unsigned long lampRefer, unsigned long ringCount) {
   }
   return ringCount;
 }
+
+byte updateRunningMode(bool linGeo, bool sinStrip) {
+  byte newRunningMode;
+  if (!linGeo) {
+    if (!sinStrip) {
+      newRunningMode = LINEAR_SINGLE;
+    } else {
+      newRunningMode = LINEAR_STRIP;
+    }
+  } else {
+    if (!sinStrip) {
+      newRunningMode = GEOMETRIC_SINGLE;
+    } else {
+      newRunningMode = GEOMETRIC_STRIP;
+    }
+  }
+  return newRunningMode;
+}
+
