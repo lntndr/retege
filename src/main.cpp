@@ -64,7 +64,7 @@ void setup() {
     input[i].interval(40);
   }
   lcd.begin(16,2);
-  lcd.print("main.cpp");
+  lcd.print("retege v0.1");
   delay(1500);
   lcd.clear();
 
@@ -85,11 +85,10 @@ void loop() {
   static byte stripNumber = 6;
   static unsigned long stripDuration = 5000;
   static byte geometricReason = 3;
-  static byte geometricIndex = 0;
+  static int geometricIndex = 0;
   static unsigned long evalTimeSpan = 0;
   static unsigned long rollingTime = 0;
 
-  // run things
   // update buttons
   for (int i = 0; i < 8; i++) {
     input[i].update();
@@ -112,6 +111,10 @@ void loop() {
       newRunningMode = GEOMETRIC_STRIP;
     }
   }
+
+  // if runningMode has changed, act as consequence
+  // - nothing happens in SETUP and FOCUS
+  // - EXPOSURE is instantly reverted to SETUP
   if (runningMode != newRunningMode && runningStatus != 2) {
     lcd.clear();
     lampFirstMillis = 0;
@@ -124,25 +127,41 @@ void loop() {
   // switch between runningStatus
   switch (runningStatus) {
     case SETUP:
+      // turn off the lamp
       digitalWrite(relayPin,LOW);
 
       // READ BUTTONS 
-      // check if runningMode has to be changed
+      // check if runningStatus has to be changed
       if (input[START_BUTTON].rose()) {
         runningStatus = EXPOSURE;
       } else if (input[FOCUS_TOGGLE].read()) {
         runningStatus = FOCUS;
       }
       if (runningStatus != SETUP) {
-        rollingTime=evalTimeSpan+10;
+        rollingTime=evalTimeSpan;
         lampFirstMillis = millis() + 10; // 10 ms buffer allows to use unsigned long
         lcd.clear();
         break;
       }
-      // check buttons
+
+      // update evalTimeSpan
       switch (runningMode) {
         case LINEAR_SINGLE:
           evalTimeSpan = baseTimeSpan;
+          break;
+        case GEOMETRIC_SINGLE:
+          evalTimeSpan = baseTimeSpan*pow(2,(1.*geometricIndex)/(1.*geometricReason));
+          break;
+        case LINEAR_STRIP:
+          evalTimeSpan = baseTimeSpan+(stripDuration*stripNumber);
+          break;
+        case GEOMETRIC_STRIP:
+          evalTimeSpan = baseTimeSpan*pow(2,(1.*stripNumber)/(1.*geometricReason));
+          break;
+      }
+      // read buttons
+      switch (runningMode) {
+        case LINEAR_SINGLE:
           for (int i = 0; i < 4; i++) {
             if (pressHoldButton(i)) {
               baseTimeSpan = changeSpanLinearly(i,baseTimeSpan);
@@ -151,7 +170,6 @@ void loop() {
           break;
 
         case GEOMETRIC_SINGLE:
-          evalTimeSpan = baseTimeSpan*pow(2,(1.*geometricIndex)/(1.*geometricReason));
           for (int i = 0; i < 3; i=i+2) {
             if (pressHoldButton(i)) {
               if (geometricReason+(i-1) > 0) {
@@ -169,7 +187,6 @@ void loop() {
           break;
 
         case LINEAR_STRIP:
-          evalTimeSpan=baseTimeSpan+(stripDuration*stripNumber);
           for (int i = 0; i < 3; i=i+2) {
             if (pressHoldButton(i)) {
               if (stripNumber+(i-1) > 0) {
@@ -186,7 +203,6 @@ void loop() {
           }
           break;
         case GEOMETRIC_STRIP:
-          evalTimeSpan=baseTimeSpan*pow(2,(1.*stripNumber)/(1.*geometricReason));
           for (int i = 0; i < 3; i=i+2) {
             if (pressHoldButton(i)) {
               if (stripNumber+(i-1) > 0) {
