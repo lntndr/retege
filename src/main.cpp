@@ -28,7 +28,8 @@ Bounce * input = new Bounce[8];
 // functions declarations
 bool pressHoldButton(int i);
 float changeSpanLinearly(int j, float base);
-unsigned long stripRing(byte mode, unsigned long lampRefer, float stripDuration, float baseTimeSpan, unsigned long ringCount, byte geometricReason);
+unsigned long stripRinger(byte mode, unsigned long lampRefer, float stripDuration, float baseTimeSpan, unsigned long ringCount, byte reason);
+unsigned long metronome(unsigned long lampRefer, unsigned long ringCount);
 
 void setup() {
   // local variables
@@ -133,8 +134,8 @@ void loop() {
         runningStatus = FOCUS;
       }
       if (runningStatus != SETUP) {
-        rollingTime=evalTimeSpan+10; // 10 ms buffer allows to use unsigned long
-        lampFirstMillis = millis();
+        rollingTime=evalTimeSpan+10;
+        lampFirstMillis = millis() + 10; // 10 ms buffer allows to use unsigned long
         lcd.clear();
         break;
       }
@@ -263,14 +264,11 @@ void loop() {
       switch(runningMode) {
         case LINEAR_SINGLE:
         case GEOMETRIC_SINGLE:
-          if (millis()>=lampFirstMillis+ringCount*1000.){ // buzz every second
-            tone(buzPin, 987, 100);
-            ringCount++;
-          }
+          ringCount = metronome(lampFirstMillis,ringCount);
           break;
         case LINEAR_STRIP:
         case GEOMETRIC_STRIP:
-            ringCount = stripRing(runningMode, lampFirstMillis, stripDuration, baseTimeSpan, ringCount, geometricReason);
+          ringCount = stripRinger(runningMode, lampFirstMillis, stripDuration, baseTimeSpan, ringCount, geometricReason);
           break;
       }
 
@@ -304,10 +302,7 @@ void loop() {
 
       digitalWrite(relayPin,HIGH);
       // play ringer
-      if (millis()>=lampFirstMillis+ringCount*1000) { // buzz every second
-        tone(buzPin, 987, 100);
-        ringCount++;
-      }
+      ringCount = metronome(lampFirstMillis,ringCount);
       // display output
       lcd.setCursor(0,0);
       lcd.print("FOCUS");
@@ -331,19 +326,17 @@ bool pressHoldButton(int i) {
     holdInterval++;
     Serial.print(holdMillis);
     Serial.print(" ");
+    Serial.print(input[i].duration());
+    Serial.print("\n");
   } else {
     y = 0;
   }
 
-  if (input[i].read() && input[i].duration()>4000) {
-    holdMillis = 20;
-  } else if (input[i].read() && input[i].duration()>3000) {
-    holdMillis = 40;
-  } else if (input[i].read() && input[i].duration()>2000) {
-    holdMillis = 60;
-  } else if (input[i].read() && input[i].duration()>1000) {
-    holdMillis = 80;
-  } 
+  for (byte k = 1; k < 5; k++) {
+    if (input[i].read() && input[i].duration()>k*1000) {
+      holdMillis = 100-(k*20);
+    }
+  }
 
   if (input[i].fell()) {
     holdInterval=0;
@@ -369,23 +362,31 @@ float changeSpanLinearly(int j, float base) {
   return y;
 }
 
-unsigned long stripRing(byte mode, unsigned long lampRefer, float stripDuration, float baseTimeSpan, unsigned long ringCount, byte geometricReason) {
-    float rollingInterval;
+unsigned long stripRinger(byte mode, unsigned long lampRefer, float stripDuration, float baseTimeSpan, unsigned long ringCount, byte reason) {
+  float rollingInterval;
 
-    if (mode == LINEAR_STRIP) {
-      rollingInterval = baseTimeSpan + stripDuration*ringCount;
-    } else if (mode == GEOMETRIC_STRIP) {
-      rollingInterval = baseTimeSpan*pow(2,(1.*ringCount)/(1.*geometricReason));
-    }
+  if (mode == LINEAR_STRIP) {
+    rollingInterval = baseTimeSpan + stripDuration*ringCount;
+  } else if (mode == GEOMETRIC_STRIP) {
+    rollingInterval = baseTimeSpan*pow(2,(1.*ringCount)/(1.*reason));
+  }
 
-    if (millis()>= lampRefer - 260 + rollingInterval ) {
-      tone(buzPin, 659, 150);
-    }
+  if (millis()>= lampRefer - 250 + rollingInterval ) {
+    tone(buzPin, 659, 150);
+  }
 
-    if (millis() >= lampRefer - 10 + rollingInterval) {
-      tone(buzPin, 880, 150);
-      ringCount++;
-    }
-    return ringCount;
+  if (millis() >= lampRefer + rollingInterval) {
+    tone(buzPin, 880, 150);
+    ringCount++;
+  }
+  return ringCount;
     
+}
+
+unsigned long metronome(unsigned long lampRefer, unsigned long ringCount) {
+  if (millis()>=lampRefer+ringCount*1000) { // buzz every second
+    tone(buzPin, 987, 100);
+    ringCount++;
+  }
+  return ringCount;
 }
