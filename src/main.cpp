@@ -80,7 +80,7 @@ void loop() {
   static byte runningMode = LINEAR_SINGLE;
   // 0 = setup, 1 = exposure, 2 = focus
   static byte runningStatus = SETUP;
-  static bool runningStatusChanged = 0;
+  static bool runningStatusChanged = 1;
   static unsigned long lampFirstMillis = 0;
   static unsigned long baseTimeSpan = 10000;
   static byte stripNumber = 6;
@@ -96,19 +96,17 @@ void loop() {
   }
 
   runningStatus = updateRunningStatus(runningStatus, runningStatusChanged, input[START_BUTTON].rose(), input[FOCUS_TOGGLE].read(), rollingTime);
-
   switch (runningStatus) {
     case SETUP:
-      
-      // turn off the lamp
-      digitalWrite(relayPin,LOW);
-      runningMode = updateRunningMode(runningMode,input[LINEAR_GEOMETRIC_TOGGLE].read(),input[SINGLE_STRIP_TOGGLE].read());
       if (runningStatusChanged) {
         ringCount = 0;
         rollingTime = 0;
         lampFirstMillis = 0;
         lcd.clear();
       }
+      // turn off the lamp
+      digitalWrite(relayPin,LOW);
+      runningMode = updateRunningMode(runningMode,input[LINEAR_GEOMETRIC_TOGGLE].read(),input[SINGLE_STRIP_TOGGLE].read());
       // update evalTimeSpangi
       switch (runningMode) {
         case LINEAR_SINGLE:
@@ -379,17 +377,25 @@ byte updateRunningMode(byte runningMode, bool linGeo, bool sinStrip) {
 }
 
 byte updateRunningStatus(byte runningStatus, bool & runningStatusChanged, bool startRose, bool focusHigh, unsigned long rollingTime) {
-  byte newRunningStatus;
-  if (runningStatus==2 && !focusHigh) {
-    newRunningStatus = 0;
-  } else if (runningStatus < 2) {
-    if (startRose) {
-      newRunningStatus = !runningStatus;
-    } else if (rollingTime < 10 && rollingTime > 0) {
-      newRunningStatus = 0;
-    } else if (focusHigh) {
-      newRunningStatus = 2; 
-    }
+  byte newRunningStatus = runningStatus;
+  switch (runningStatus) {
+    case SETUP:
+      if (startRose) {
+        newRunningStatus = EXPOSURE;
+      } else if (focusHigh) {
+        newRunningStatus = FOCUS;
+      } 
+      break;
+    case EXPOSURE:
+      if (startRose) {
+        newRunningStatus = SETUP;
+      } 
+      break;
+    case FOCUS:
+      if (!focusHigh) {
+        newRunningStatus = SETUP;
+      } 
+      break;
   }
   if (runningStatus != newRunningStatus) {
     runningStatusChanged = 1;
@@ -397,5 +403,5 @@ byte updateRunningStatus(byte runningStatus, bool & runningStatusChanged, bool s
   } else {
     runningStatusChanged = 0;
   }
-  return runningStatus;
+  return newRunningStatus;
 }
