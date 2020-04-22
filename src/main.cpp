@@ -20,6 +20,8 @@
 #define LINEAR_GEOMETRIC_TOGGLE 6
 #define SINGLE_STRIP_TOGGLE 7
 
+#define LCD 1
+
 // global variables
 /// relay
 const int relayPin = 13;
@@ -106,7 +108,6 @@ void loop() {
       lcd.clear();
     }
   }
-
   runningStatus = updateRunningStatus(runningStatus, runningStatusChanged, input[START_BUTTON].rose(), input[FOCUS_TOGGLE].read(), rollingTime);
   switch (runningStatus) {
     case SETUP:
@@ -122,37 +123,20 @@ void loop() {
       // update evalTimeSpangi
       evalTimeSpan = updateEvalTimeSpan(runningMode, baseTimeSpan, geometricIndex, geometricReason, stripDuration, stripNumber);
       // read buttons
-      switch (runningMode) {
-        case LINEAR_SINGLE:
-          baseTimeSpan = updateBaseTimeSpan(baseTimeSpan);
-          break;
-
-        case GEOMETRIC_SINGLE:
-          geometricReason = updateGeometricReason(geometricReason);
-          geometricIndex = updateGeometricIndex(geometricIndex);
-          break;
-
-        case LINEAR_STRIP:
-          stripDuration = updateStripDuration(stripDuration);
-          stripNumber = updateStripNumber(stripNumber);
-          break;
-
-        case GEOMETRIC_STRIP:
-          geometricReason = updateGeometricReason(geometricReason);
-          stripNumber = updateStripNumber(stripNumber);
-          break;
-      }
-      
-      // DISPLAY OUTPUT
-      // display output
       lcd.setCursor(0,0);
       lcd.print("SETUP");
       lcd.setCursor(0,1);
       switch (runningMode) {
         case LINEAR_SINGLE:
+          baseTimeSpan = updateBaseTimeSpan(baseTimeSpan);
+
           lcd.print(evalTimeSpan/1000.,1);
           break;
+
         case GEOMETRIC_SINGLE:
+          geometricReason = updateGeometricReason(geometricReason);
+          geometricIndex = updateGeometricIndex(geometricIndex);
+
           lcd.print(baseTimeSpan/1000.,1);
           if (geometricIndex>=0) {
             lcd.print("+");
@@ -163,7 +147,11 @@ void loop() {
           lcd.print("=");
           lcd.print(evalTimeSpan/1000.,2);
           break;
+
         case LINEAR_STRIP:
+          stripDuration = updateStripDuration(stripDuration);
+          stripNumber = updateStripNumber(stripNumber);
+
           lcd.print(baseTimeSpan/1000.,1);
           lcd.print("+[");
           lcd.print(stripNumber);
@@ -171,7 +159,11 @@ void loop() {
           lcd.print(stripDuration/1000.,1);
           lcd.print("s]");
           break;
+
         case GEOMETRIC_STRIP:
+          geometricReason = updateGeometricReason(geometricReason);
+          stripNumber = updateStripNumber(stripNumber);
+
           lcd.print(baseTimeSpan/1000.,1);
           lcd.print("+[");
           lcd.print(stripNumber);
@@ -191,6 +183,14 @@ void loop() {
       }
       digitalWrite(relayPin,HIGH);
       rollingTime = (lampFirstMillis+(evalTimeSpan)-millis());
+      lcd.setCursor(0,0);
+      lcd.print("EXPOSURE");
+      lcd.setCursor(0,1);
+      lcd.print(rollingTime/1000.,1);
+      if ((int)log10(rollingTime)+1 != (int)log10(rollingTime+100)+1) {
+          //clear the screen when the number of digit changes
+          lcd.clear(); 
+      }
       // play ringer
       switch(runningMode) {
         case LINEAR_SINGLE:
@@ -199,25 +199,14 @@ void loop() {
           break;
         case LINEAR_STRIP:
         case GEOMETRIC_STRIP:
+          lcd.print("  ");
+          lcd.print(ringCount);
+          lcd.print("/");
+          lcd.print(stripNumber);
           ringCount = stripRinger(runningMode, lampFirstMillis, stripDuration, baseTimeSpan, ringCount, geometricReason);
           break;
       }
-
-      // display output
-      lcd.setCursor(0,0);
-      lcd.print("EXPOSURE");
-      lcd.setCursor(0,1);
-      if (runningMode > 1) {
-        lcd.print(ringCount);
-          lcd.print("/");
-          lcd.print(stripNumber);
-          lcd.print("  ");
-      }
-      lcd.print(rollingTime/1000.,1);
-      if ((int)log10(rollingTime)+1 != (int)log10(rollingTime+100)+1) {
-        //clear the screen when the number of digit changes
-        lcd.clear(); 
-      }
+      
       break; // end EXPOSURE case
 
     case FOCUS:
@@ -229,11 +218,13 @@ void loop() {
       // play ringer
       ringCount = metronome(lampFirstMillis,ringCount);
       // display output
-      lcd.setCursor(0,0);
-      lcd.print("FOCUS");
-      lcd.setCursor(0,1);
-      if (millis()>=lampFirstMillis) {
-        lcd.print((millis()-lampFirstMillis)/1000.,1);
+      if (LCD) {
+        lcd.setCursor(0,0);
+        lcd.print("FOCUS");
+        lcd.setCursor(0,1);
+        if (millis()>=lampFirstMillis) {
+          lcd.print((millis()-lampFirstMillis)/1000.,1);
+        }
       }
       break;
   }
@@ -273,7 +264,7 @@ float changeSpanLinearly(int j, float base) {
   }
   if (base+k < 0) {
     y = 0;
-  } else if (base+k >= 1000000) {
+  } else if (base+k > 999999) {
     y = 999999;
   } else {
     y= base+k;
@@ -381,13 +372,18 @@ unsigned long updateEvalTimeSpan(byte mode, unsigned long base, int index, byte 
   return eval; 
 }
 
-unsigned long updateBaseTimeSpan(unsigned long baseTimeSpan) {   
+unsigned long updateBaseTimeSpan(unsigned long baseTimeSpan) {
+  unsigned long newBaseTimeSpan = baseTimeSpan;
   for (int i = 0; i < 4; i++) {
     if (pressHoldButton(i)) {
-      baseTimeSpan = changeSpanLinearly(i,baseTimeSpan);
+      newBaseTimeSpan = changeSpanLinearly(i,baseTimeSpan);
     }
   }
-  return baseTimeSpan;
+  if ((int)log10(baseTimeSpan)+1 > (int)log10(newBaseTimeSpan)+1) {
+    //clear the screen when the number of digit changes
+    lcd.clear(); 
+  }
+  return newBaseTimeSpan;
 }
 
 byte updateGeometricReason(byte reason) {
