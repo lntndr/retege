@@ -24,15 +24,14 @@ const int buzPin = 19;
 // objects
 LiquidCrystal lcd(7, 8, 9, 10, 11, 12);
 Bounce * input = new Bounce[8];
-bool runningStatusChanged = 1;
 
 // functions declarations
 bool pressHoldButton(int i);
 float changeSpanLinearly(int j, float base);
 unsigned long stripRinger(byte mode, unsigned long lampRefer, float stripDuration, float baseTimeSpan, unsigned long ringCount, byte reason);
 unsigned long metronome(unsigned long lampRefer, unsigned long ringCount);
-byte updateRunningMode(bool linGeo, bool sinStrip);
-byte updateRunningStatus(byte runningStatus, bool startRose, bool focusHigh, unsigned long rollingTime);
+byte updateRunningMode(byte runningMode, bool linGeo, bool sinStrip);
+byte updateRunningStatus(byte runningStatus, bool & runningStatusChanged, bool startRose, bool focusHigh, unsigned long rollingTime);
 
 void setup() {
   // local variables
@@ -81,6 +80,7 @@ void loop() {
   static byte runningMode = LINEAR_SINGLE;
   // 0 = setup, 1 = exposure, 2 = focus
   static byte runningStatus = SETUP;
+  static bool runningStatusChanged = 0;
   static unsigned long lampFirstMillis = 0;
   static unsigned long baseTimeSpan = 10000;
   static byte stripNumber = 6;
@@ -93,26 +93,23 @@ void loop() {
   // update buttons
   for (int i = 0; i < 8; i++) {
     input[i].update();
-    if (input[i].rose()) {
-      lcd.clear();
-    }
   }
 
-  runningStatus = updateRunningStatus(runningStatus, input[START_BUTTON].rose(), input[FOCUS_TOGGLE].read(), rollingTime);
+  runningStatus = updateRunningStatus(runningStatus, runningStatusChanged, input[START_BUTTON].rose(), input[FOCUS_TOGGLE].read(), rollingTime);
 
   switch (runningStatus) {
     case SETUP:
       
       // turn off the lamp
       digitalWrite(relayPin,LOW);
-      runningMode = updateRunningMode(input[LINEAR_GEOMETRIC_TOGGLE].read(),input[SINGLE_STRIP_TOGGLE].read());
+      runningMode = updateRunningMode(runningMode,input[LINEAR_GEOMETRIC_TOGGLE].read(),input[SINGLE_STRIP_TOGGLE].read());
       if (runningStatusChanged) {
         ringCount = 0;
         rollingTime = 0;
         lampFirstMillis = 0;
         lcd.clear();
       }
-      // update evalTimeSpan
+      // update evalTimeSpangi
       switch (runningMode) {
         case LINEAR_SINGLE:
           evalTimeSpan = baseTimeSpan;
@@ -337,6 +334,8 @@ unsigned long stripRinger(byte mode, unsigned long lampRefer, float stripDuratio
     rollingInterval = baseTimeSpan + stripDuration*ringCount;
   } else if (mode == GEOMETRIC_STRIP) {
     rollingInterval = baseTimeSpan*pow(2,(1.*ringCount)/(1.*reason));
+  } else {
+    return -1;
   }
 
   if (millis()>= lampRefer - 250 + rollingInterval ) {
@@ -358,7 +357,7 @@ unsigned long metronome(unsigned long lampRefer, unsigned long ringCount) {
   return ringCount;
 }
 
-byte updateRunningMode(bool linGeo, bool sinStrip) {
+byte updateRunningMode(byte runningMode, bool linGeo, bool sinStrip) {
   byte newRunningMode;
   if (!linGeo) {
     if (!sinStrip) {
@@ -373,10 +372,13 @@ byte updateRunningMode(bool linGeo, bool sinStrip) {
       newRunningMode = GEOMETRIC_STRIP;
     }
   }
+  if (newRunningMode != runningMode) {
+    lcd.clear();
+  }
   return newRunningMode;
 }
 
-byte updateRunningStatus(byte runningStatus, bool startRose, bool focusHigh, unsigned long rollingTime) {
+byte updateRunningStatus(byte runningStatus, bool & runningStatusChanged, bool startRose, bool focusHigh, unsigned long rollingTime) {
   byte newRunningStatus;
   if (runningStatus==2 && !focusHigh) {
     newRunningStatus = 0;
