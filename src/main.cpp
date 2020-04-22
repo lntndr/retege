@@ -32,6 +32,8 @@ unsigned long stripRinger(byte mode, unsigned long lampRefer, float stripDuratio
 unsigned long metronome(unsigned long lampRefer, unsigned long ringCount);
 byte updateRunningMode(byte runningMode, bool linGeo, bool sinStrip);
 byte updateRunningStatus(byte runningStatus, bool & runningStatusChanged, bool startRose, bool focusHigh, unsigned long rollingTime);
+unsigned long updateEvalTimeSpan(byte mode, unsigned long base, int index, byte reason, unsigned long duration, byte strip);
+unsigned long updateBaseTimeSpan(unsigned long baseTimeSpan);
 
 void setup() {
   // local variables
@@ -69,7 +71,6 @@ void setup() {
   lcd.print("retege v0.1");
   delay(2000);
   lcd.clear();
-
   Serial.begin(9600);
 }
 
@@ -93,6 +94,9 @@ void loop() {
   // update buttons
   for (int i = 0; i < 8; i++) {
     input[i].update();
+    if (input[i].rose()) {
+      lcd.clear();
+    }
   }
 
   runningStatus = updateRunningStatus(runningStatus, runningStatusChanged, input[START_BUTTON].rose(), input[FOCUS_TOGGLE].read(), rollingTime);
@@ -108,28 +112,17 @@ void loop() {
       digitalWrite(relayPin,LOW);
       runningMode = updateRunningMode(runningMode,input[LINEAR_GEOMETRIC_TOGGLE].read(),input[SINGLE_STRIP_TOGGLE].read());
       // update evalTimeSpangi
-      switch (runningMode) {
-        case LINEAR_SINGLE:
-          evalTimeSpan = baseTimeSpan;
-          break;
-        case GEOMETRIC_SINGLE:
-          evalTimeSpan = baseTimeSpan*pow(2,(1.*geometricIndex)/(1.*geometricReason));
-          break;
-        case LINEAR_STRIP:
-          evalTimeSpan = baseTimeSpan+(stripDuration*stripNumber);
-          break;
-        case GEOMETRIC_STRIP:
-          evalTimeSpan = baseTimeSpan*pow(2,(1.*stripNumber)/(1.*geometricReason));
-          break;
-      }
+      evalTimeSpan = updateEvalTimeSpan(runningMode, baseTimeSpan, geometricIndex, geometricReason, stripDuration, stripNumber);
+      /*
+      geometricReason = updateGeometricReason();
+      geometricIndex = updateGeometricIndex();
+      stripNumber = updateStripNumber();
+      stripDuration = updateStripDuration();
+      */
       // read buttons
       switch (runningMode) {
         case LINEAR_SINGLE:
-          for (int i = 0; i < 4; i++) {
-            if (pressHoldButton(i)) {
-              baseTimeSpan = changeSpanLinearly(i,baseTimeSpan);
-            }
-          }
+          baseTimeSpan = updateBaseTimeSpan(baseTimeSpan);
           break;
 
         case GEOMETRIC_SINGLE:
@@ -387,7 +380,7 @@ byte updateRunningStatus(byte runningStatus, bool & runningStatusChanged, bool s
       } 
       break;
     case EXPOSURE:
-      if (startRose) {
+      if (startRose || (rollingTime>0 && rollingTime<10)) {
         newRunningStatus = SETUP;
       } 
       break;
@@ -404,4 +397,32 @@ byte updateRunningStatus(byte runningStatus, bool & runningStatusChanged, bool s
     runningStatusChanged = 0;
   }
   return newRunningStatus;
+}
+
+unsigned long updateEvalTimeSpan(byte mode, unsigned long base, int index, byte reason, unsigned long duration, byte strip){
+  unsigned long eval;
+  switch (mode) {
+      case LINEAR_SINGLE:
+      eval = base;
+      break;
+      case GEOMETRIC_SINGLE:
+      eval = base*pow(2,(1.*index)/(1.*reason));
+      break;
+      case LINEAR_STRIP:
+      eval = base+(duration*strip);
+      break;
+      case GEOMETRIC_STRIP:
+      eval = base*pow(2,(1.*strip)/(1.*reason));
+      break;
+    }  
+  return eval; 
+}
+
+unsigned long updateBaseTimeSpan(unsigned long baseTimeSpan) {   
+  for (int i = 0; i < 4; i++) {
+    if (pressHoldButton(i)) {
+      baseTimeSpan = changeSpanLinearly(i,baseTimeSpan);
+    }
+  }
+  return baseTimeSpan;
 }
