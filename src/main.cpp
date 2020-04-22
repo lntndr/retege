@@ -38,12 +38,12 @@ unsigned long updateBaseTimeSpan(unsigned long baseTimeSpan);
 void setup() {
   // local variables
   /// buttons
-  const int m1Pin = 2, m2Pin = 3, startPin = 4, p1Pin = 5, p2Pin = 6;
+  const int sePin = 2, swPin = 3, startPin = 4, nePin = 5, nwPin = 6;
   /// toggles
   const int focusPin = 14, linGeoPin = 15, singStriPin = 16;
   /// bounce2 aux array
-  const int inputPins[8] = {m1Pin, m2Pin,
-                            p1Pin, p2Pin,
+  const int inputPins[8] = {sePin, swPin,
+                            nePin, nwPin,
                             startPin,
                             focusPin, linGeoPin, singStriPin};
 
@@ -51,11 +51,11 @@ void setup() {
   pinMode(relayPin, OUTPUT);
   pinMode(buzPin,   OUTPUT);
 
-  pinMode(p1Pin,    INPUT);
-  pinMode(p2Pin,    INPUT);
+  pinMode(nePin,    INPUT);
+  pinMode(nwPin,    INPUT);
   pinMode(startPin, INPUT);
-  pinMode(m1Pin,    INPUT);
-  pinMode(m2Pin,    INPUT);
+  pinMode(sePin,    INPUT);
+  pinMode(swPin,    INPUT);
 
   pinMode(focusPin,    INPUT);
   pinMode(linGeoPin,   INPUT);
