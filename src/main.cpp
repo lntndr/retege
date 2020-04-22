@@ -28,15 +28,19 @@ LiquidCrystal lcd(7, 8, 9, 10, 11, 12);
 Bounce * input = new Bounce[8];
 
 // functions declarations
+
 /// service function
 bool pressHoldButton(int i);
 float changeSpanLinearly(int j, float base);
+
 /// buzzer functions
 unsigned long playEndStrip(byte mode, unsigned long lampRefer, float stripDuration, float baseTimeSpan, unsigned long ringCount, byte reason);
 unsigned long playMetronome(unsigned long lampRefer, unsigned long ringCount);
+
 /// state variables functions
 byte updateRunningMode(byte runningMode, bool linGeo, bool sinStrip);
 byte updateRunningStatus(byte runningStatus, bool & runningStatusChanged, bool startRose, bool focusHigh, unsigned long rollingTime);
+
 /// possible timer class?
 unsigned long updateEvalTimeSpan(byte mode, unsigned long base, int index, byte reason, unsigned long duration, byte strip);
 unsigned long updateBaseTimeSpan(unsigned long baseTimeSpan);
@@ -49,8 +53,10 @@ void setup() {
   // local variables
   /// buttons
   const int sePin = 2, swPin = 3, startPin = 4, nePin = 5, nwPin = 6;
+
   /// toggles
   const int focusPin = 14, linGeoPin = 15, singStriPin = 16;
+
   /// bounce2 aux array
   const int inputPins[8] = {sePin, swPin,
                             nePin, nwPin,
@@ -72,33 +78,38 @@ void setup() {
   pinMode(singStriPin, INPUT);
 
   // run things
-
   for (int i = 0; i < 8; i++) {
     input[i].attach(inputPins[i], INPUT);
     input[i].interval(40);
   }
+
   lcd.begin(16,2);
   lcd.print("retege v0.1");
   delay(2000);
   lcd.clear();
+
   Serial.begin(9600);
 }
 
 void loop() {
   // local variables
-  static unsigned long ringCount = 0;
   // 0 = linear single, 1 = geometric single, 2 = linear strip, 3 = geometric strip
   static byte runningMode = LINEAR_SINGLE;
   // 0 = setup, 1 = exposure, 2 = focus
   static byte runningStatus = SETUP;
   static bool runningStatusChanged = 1;
-  static unsigned long lampFirstMillis = 0;
+
+  // possible timer class?
   static unsigned long baseTimeSpan = 10000;
+  static unsigned long evalTimeSpan = 0;
   static byte stripNumber = 6;
   static unsigned long stripDuration = 5000;
-  static byte geometricReason = 3;
   static int geometricIndex = 0;
-  static unsigned long evalTimeSpan = 0;
+  static byte geometricReason = 3;
+
+  // sound and countup/down
+  static unsigned long lampFirstMillis = 0;
+  static unsigned long ringCount = 0;
   static unsigned long rollingTime = 0;
 
   // update buttons
@@ -366,7 +377,7 @@ unsigned long updateBaseTimeSpan(unsigned long base) {
       } else {
       k = pow(10,i);
       }
-      if (base+k < 0) {
+      if ((int)base+k < 0) {
         newb = 0;
       } else if (base+k > 999900) {
         newb = 999900;
