@@ -20,24 +20,24 @@
 #define LINEAR_GEOMETRIC_TOGGLE 6
 #define SINGLE_STRIP_TOGGLE 7
 
-#define LCD 1
+#define RELAY 13
+#define BUZZER 19
 
-// global variables
-/// relay
-const int relayPin = 13;
-/// buzzer
-const int buzPin = 19;
 // objects
 LiquidCrystal lcd(7, 8, 9, 10, 11, 12);
 Bounce * input = new Bounce[8];
 
 // functions declarations
+/// service function
 bool pressHoldButton(int i);
 float changeSpanLinearly(int j, float base);
-unsigned long stripRinger(byte mode, unsigned long lampRefer, float stripDuration, float baseTimeSpan, unsigned long ringCount, byte reason);
-unsigned long metronome(unsigned long lampRefer, unsigned long ringCount);
+/// buzzer functions
+unsigned long playEndStrip(byte mode, unsigned long lampRefer, float stripDuration, float baseTimeSpan, unsigned long ringCount, byte reason);
+unsigned long playMetronome(unsigned long lampRefer, unsigned long ringCount);
+/// state variables functions
 byte updateRunningMode(byte runningMode, bool linGeo, bool sinStrip);
 byte updateRunningStatus(byte runningStatus, bool & runningStatusChanged, bool startRose, bool focusHigh, unsigned long rollingTime);
+/// possible timer class?
 unsigned long updateEvalTimeSpan(byte mode, unsigned long base, int index, byte reason, unsigned long duration, byte strip);
 unsigned long updateBaseTimeSpan(unsigned long baseTimeSpan);
 byte updateGeometricReason(byte reason);
@@ -58,8 +58,8 @@ void setup() {
                             focusPin, linGeoPin, singStriPin};
 
   // declarations
-  pinMode(relayPin, OUTPUT);
-  pinMode(buzPin,   OUTPUT);
+  pinMode(RELAY,  OUTPUT);
+  pinMode(BUZZER, OUTPUT);
 
   pinMode(nePin,    INPUT);
   pinMode(nwPin,    INPUT);
@@ -111,6 +111,7 @@ void loop() {
   runningStatus = updateRunningStatus(runningStatus, runningStatusChanged, input[START_BUTTON].rose(), input[FOCUS_TOGGLE].read(), rollingTime);
   switch (runningStatus) {
     case SETUP:
+      // mode independent
       if (runningStatusChanged) {
         ringCount = 0;
         rollingTime = 0;
@@ -118,7 +119,7 @@ void loop() {
         lcd.clear();
       }
       // turn off the lamp
-      digitalWrite(relayPin,LOW);
+      digitalWrite(RELAY,LOW);
       runningMode = updateRunningMode(runningMode,input[LINEAR_GEOMETRIC_TOGGLE].read(),input[SINGLE_STRIP_TOGGLE].read());
       // update evalTimeSpangi
       evalTimeSpan = updateEvalTimeSpan(runningMode, baseTimeSpan, geometricIndex, geometricReason, stripDuration, stripNumber);
@@ -126,6 +127,8 @@ void loop() {
       lcd.setCursor(0,0);
       lcd.print("SETUP");
       lcd.setCursor(0,1);
+
+      // mode dependent
       switch (runningMode) {
         case LINEAR_SINGLE:
           baseTimeSpan = updateBaseTimeSpan(baseTimeSpan);
@@ -176,13 +179,15 @@ void loop() {
       break; // end SETUP case
 
     case EXPOSURE:
+      // mode independent
       if (runningStatusChanged) {
         rollingTime=evalTimeSpan;
         lampFirstMillis = millis() + 10; // 10 ms buffer allows to use unsigned long
         lcd.clear();
       }
-      digitalWrite(relayPin,HIGH);
+      digitalWrite(RELAY,HIGH);
       rollingTime = (lampFirstMillis+(evalTimeSpan)-millis());
+
       lcd.setCursor(0,0);
       lcd.print("EXPOSURE");
       lcd.setCursor(0,1);
@@ -191,11 +196,12 @@ void loop() {
           //clear the screen when the number of digit changes
           lcd.clear(); 
       }
-      // play ringer
+
+      // mode dependent
       switch(runningMode) {
         case LINEAR_SINGLE:
         case GEOMETRIC_SINGLE:
-          ringCount = metronome(lampFirstMillis,ringCount);
+          ringCount = playMetronome(lampFirstMillis,ringCount);
           break;
         case LINEAR_STRIP:
         case GEOMETRIC_STRIP:
@@ -203,29 +209,24 @@ void loop() {
           lcd.print(ringCount);
           lcd.print("/");
           lcd.print(stripNumber);
-          ringCount = stripRinger(runningMode, lampFirstMillis, stripDuration, baseTimeSpan, ringCount, geometricReason);
+          ringCount = playEndStrip(runningMode, lampFirstMillis, stripDuration, baseTimeSpan, ringCount, geometricReason);
           break;
       }
       
       break; // end EXPOSURE case
 
     case FOCUS:
+      // mode independent
       if (runningStatusChanged) {
         lampFirstMillis = millis() + 10; // 10 ms buffer allows to use unsigned long
         lcd.clear();
       }
-      digitalWrite(relayPin,HIGH);
-      // play ringer
-      ringCount = metronome(lampFirstMillis,ringCount);
-      // display output
-      if (LCD) {
-        lcd.setCursor(0,0);
-        lcd.print("FOCUS");
-        lcd.setCursor(0,1);
-        if (millis()>=lampFirstMillis) {
-          lcd.print((millis()-lampFirstMillis)/1000.,1);
-        }
-      }
+      digitalWrite(RELAY,HIGH);
+      ringCount = playMetronome(lampFirstMillis,ringCount);
+      lcd.setCursor(0,0);
+      lcd.print("FOCUS");
+      lcd.setCursor(0,1);
+      lcd.print((millis()-lampFirstMillis+10)/1000.,1);
       break;
   }
 }
@@ -255,24 +256,7 @@ bool pressHoldButton(int i) {
   return y;
 }
 
-float changeSpanLinearly(int j, float base) {
-  float y, k;
-  if (j < 2) { // subtraction
-    k = pow(10,j+2)*-1;
-  } else {
-    k = pow(10,j);
-  }
-  if (base+k < 0) {
-    y = 0;
-  } else if (base+k > 999999) {
-    y = 999999;
-  } else {
-    y= base+k;
-  }
-  return y;
-}
-
-unsigned long stripRinger(byte mode, unsigned long lampRefer, float stripDuration, float baseTimeSpan, unsigned long ringCount, byte reason) {
+unsigned long playEndStrip(byte mode, unsigned long lampRefer, float stripDuration, float baseTimeSpan, unsigned long ringCount, byte reason) {
   float rollingInterval;
 
   if (mode == LINEAR_STRIP) {
@@ -284,19 +268,19 @@ unsigned long stripRinger(byte mode, unsigned long lampRefer, float stripDuratio
   }
 
   if (millis()>= lampRefer - 250 + rollingInterval ) {
-    tone(buzPin, 659, 150);
+    tone(BUZZER, 659, 150);
   }
 
   if (millis() >= lampRefer + rollingInterval) {
-    tone(buzPin, 880, 100);
+    tone(BUZZER, 880, 100);
     ringCount++;
   }
   return ringCount;
 }
 
-unsigned long metronome(unsigned long lampRefer, unsigned long ringCount) {
+unsigned long playMetronome(unsigned long lampRefer, unsigned long ringCount) {
   if (millis()>=lampRefer+ringCount*1000) { // buzz every second
-    tone(buzPin, 987, 100);
+    tone(BUZZER, 987, 100);
     ringCount++;
   }
   return ringCount;
@@ -372,18 +356,29 @@ unsigned long updateEvalTimeSpan(byte mode, unsigned long base, int index, byte 
   return eval; 
 }
 
-unsigned long updateBaseTimeSpan(unsigned long baseTimeSpan) {
-  unsigned long newBaseTimeSpan = baseTimeSpan;
+unsigned long updateBaseTimeSpan(unsigned long base) {
+  unsigned long newb = base;
+  int k;
   for (int i = 0; i < 4; i++) {
     if (pressHoldButton(i)) {
-      newBaseTimeSpan = changeSpanLinearly(i,baseTimeSpan);
+      if (i < 2) { // subtraction
+        k = pow(10,i+2)*-1;
+      } else {
+      k = pow(10,i);
+      }
+      if (base+k < 0) {
+        newb = 0;
+      } else if (base+k > 999900) {
+        newb = 999900;
+      } else {
+        newb = base+k;
+      }
     }
   }
-  if ((int)log10(baseTimeSpan)+1 > (int)log10(newBaseTimeSpan)+1) {
-    //clear the screen when the number of digit changes
+  if ((int)log10(newb)+1 > (int)log10(base)+1) {
     lcd.clear(); 
   }
-  return newBaseTimeSpan;
+  return newb;
 }
 
 byte updateGeometricReason(byte reason) {
