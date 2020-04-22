@@ -11,6 +11,10 @@
 #define EXPOSURE 1
 #define FOCUS 2
 
+#define SE_BUTTON 0
+#define SW_BUTTON 1
+#define NE_BUTTON 2
+#define NW_BUTTON 3                           
 #define START_BUTTON 4
 #define FOCUS_TOGGLE 5
 #define LINEAR_GEOMETRIC_TOGGLE 6
@@ -34,6 +38,10 @@ byte updateRunningMode(byte runningMode, bool linGeo, bool sinStrip);
 byte updateRunningStatus(byte runningStatus, bool & runningStatusChanged, bool startRose, bool focusHigh, unsigned long rollingTime);
 unsigned long updateEvalTimeSpan(byte mode, unsigned long base, int index, byte reason, unsigned long duration, byte strip);
 unsigned long updateBaseTimeSpan(unsigned long baseTimeSpan);
+byte updateGeometricReason(byte reason);
+int updateGeometricIndex(int index);
+byte updateStripNumber(byte strip);
+unsigned long updateStripDuration(unsigned long duration);
 
 void setup() {
   // local variables
@@ -113,12 +121,6 @@ void loop() {
       runningMode = updateRunningMode(runningMode,input[LINEAR_GEOMETRIC_TOGGLE].read(),input[SINGLE_STRIP_TOGGLE].read());
       // update evalTimeSpangi
       evalTimeSpan = updateEvalTimeSpan(runningMode, baseTimeSpan, geometricIndex, geometricReason, stripDuration, stripNumber);
-      /*
-      geometricReason = updateGeometricReason();
-      geometricIndex = updateGeometricIndex();
-      stripNumber = updateStripNumber();
-      stripDuration = updateStripDuration();
-      */
       // read buttons
       switch (runningMode) {
         case LINEAR_SINGLE:
@@ -126,57 +128,18 @@ void loop() {
           break;
 
         case GEOMETRIC_SINGLE:
-          for (int i = 0; i < 3; i=i+2) {
-            if (pressHoldButton(i)) {
-              if (geometricReason+(i-1) > 0) {
-                geometricReason = geometricReason+(i-1);
-              } else {
-                geometricReason = 1;
-              }
-            }
-          }
-          for (int i = 1; i < 4; i=i+2) {
-            if (pressHoldButton(i)) {
-              geometricIndex = geometricIndex+(i-2);
-            }
-          }
+          geometricReason = updateGeometricReason(geometricReason);
+          geometricIndex = updateGeometricIndex(geometricIndex);
           break;
 
         case LINEAR_STRIP:
-          for (int i = 0; i < 3; i=i+2) {
-            if (pressHoldButton(i)) {
-              if (stripNumber+(i-1) > 0) {
-                stripNumber = stripNumber+(i-1);
-              } else {
-                geometricReason = 1;
-              }
-            }
-          }
-          for (int i = 1; i < 4; i=i+2) {
-            if (pressHoldButton(i)) {
-              stripDuration = stripDuration+((i-2)*100);
-            }
-          }
+          stripDuration = updateStripDuration(stripDuration);
+          stripNumber = updateStripNumber(stripNumber);
           break;
+
         case GEOMETRIC_STRIP:
-          for (int i = 0; i < 3; i=i+2) {
-            if (pressHoldButton(i)) {
-              if (stripNumber+(i-1) > 0) {
-                stripNumber = stripNumber+(i-1);
-              } else {
-                geometricReason = 1;
-              }
-            }
-          }
-          for (int i = 1; i < 4; i=i+2) {
-            if (pressHoldButton(i)) {
-              if (geometricReason+(i-2) > 0) {
-                geometricReason = geometricReason+(i-2);
-              } else {
-                geometricReason = 1;
-              }
-            }
-          }
+          geometricReason = updateGeometricReason(geometricReason);
+          stripNumber = updateStripNumber(stripNumber);
           break;
       }
       
@@ -425,4 +388,40 @@ unsigned long updateBaseTimeSpan(unsigned long baseTimeSpan) {
     }
   }
   return baseTimeSpan;
+}
+
+byte updateGeometricReason(byte reason) {
+  if (pressHoldButton(NW_BUTTON)) {
+    reason++;
+  } else if (pressHoldButton(SW_BUTTON) && reason > 1) {
+    reason--;
+  }
+  return reason;
+}
+
+int updateGeometricIndex(int index) {
+  if (pressHoldButton(NE_BUTTON)) {
+    index++;
+  } else if (pressHoldButton(SE_BUTTON)) {
+    index--;
+  }
+  return index;
+}
+
+byte updateStripNumber(byte strip) {
+  if (pressHoldButton(NE_BUTTON)) {
+    strip++;
+  } else if (pressHoldButton(SE_BUTTON) && strip > 1) {
+    strip--;
+  }
+  return strip;
+}
+
+unsigned long updateStripDuration(unsigned long duration) {
+  if (pressHoldButton(NW_BUTTON)) {
+    duration = duration+100;
+  } else if (pressHoldButton(SW_BUTTON) && duration > 0) {
+    duration = duration-100;
+  }
+  return duration;
 }
