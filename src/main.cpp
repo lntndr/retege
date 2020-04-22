@@ -369,7 +369,7 @@ unsigned long updateEvalTimeSpan(byte mode, unsigned long base, int index, byte 
 
 unsigned long updateBaseTimeSpan(unsigned long base) {
   unsigned long newb = base;
-  int k;
+  unsigned long k;
   for (int i = 0; i < 4; i++) {
     if (pressHoldButton(i)) {
       if (i < 2) { // subtraction
