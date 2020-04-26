@@ -143,8 +143,7 @@ void loop() {
       switch (runningMode) {
         case LINEAR_SINGLE:
           baseTimeSpan = updateBaseTimeSpan(baseTimeSpan);
-
-          lcd.print(evalTimeSpan/1000.,1);
+          lcd.print((float)evalTimeSpan/(float)1000,1);
           break;
 
         case GEOMETRIC_SINGLE:
@@ -355,13 +354,13 @@ unsigned long updateEvalTimeSpan(byte mode, unsigned long base, int index, byte 
       eval = base;
       break;
       case GEOMETRIC_SINGLE:
-      eval = base*pow(2,(1.*index)/(1.*reason));
+      eval = base*(pow((float)2,((float)index)/((float)reason)));
       break;
       case LINEAR_STRIP:
       eval = base+(duration*strip);
       break;
       case GEOMETRIC_STRIP:
-      eval = base*pow(2,(1.*strip)/(1.*reason));
+      eval = base*(pow((float)2,((float)strip)/((float)reason)));
       break;
     }  
   return eval; 
@@ -369,27 +368,34 @@ unsigned long updateEvalTimeSpan(byte mode, unsigned long base, int index, byte 
 
 unsigned long updateBaseTimeSpan(unsigned long base) {
   unsigned long newb = base;
-  long k;
-  for (int i = 0; i < 4; i++) {
-    if (pressHoldButton(i)) {
-      if (i < 2) { // subtraction
-        k = pow(10,i+2)*-1;
-      } else {
-      k = pow(10,i);
-      }
-      if ((long)base+k < 0) {
-        newb = 0;
-      } else if (base+k > 999900) {
-        newb = 999900;
-      } else {
-        newb = base+k;
-      }
-    }
+  int k;
+  if (pressHoldButton(NE_BUTTON)) {
+    k = 100;
+  } else if (pressHoldButton(SE_BUTTON)) {
+    k = -100;
+  } else if (pressHoldButton(NW_BUTTON)) {
+    k = 1000;
+  } else if (pressHoldButton(SW_BUTTON)) {
+    k = -1000;
+  } else {
+    k = 0;
+  }
+  if ((long)base+k < 0) {
+    newb = 0;
+  } else if (base+k > 999900) {
+    newb = 999900;
+  } else {
+    newb = base+k;
   }
   if ((int)log10(newb)+1 > (int)log10(base)+1) {
     lcd.clear(); 
   }
+  Serial.print(k);
+  Serial.print(" ");
+  Serial.print(newb);
+  Serial.print("\n");
   return newb;
+
 }
 
 byte updateGeometricReason(byte reason) {
