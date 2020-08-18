@@ -1,3 +1,17 @@
+/*  Copyright 2020 Andrea Lanterna
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+*/
 #include <Arduino.h>
 #include <Bounce2.h>
 #include <LiquidCrystal.h>
@@ -11,10 +25,10 @@
 #define EXPOSURE 1
 #define FOCUS 2
 
-#define SE_BUTTON 0
-#define SW_BUTTON 1
-#define NE_BUTTON 2
-#define NW_BUTTON 3                           
+#define W_BUTTON 0
+#define S_BUTTON 1
+#define E_BUTTON 2
+#define N_BUTTON 3                           
 #define START_BUTTON 4
 #define FOCUS_TOGGLE 5
 #define LINEAR_GEOMETRIC_TOGGLE 6
@@ -30,7 +44,7 @@ Bounce * input = new Bounce[8];
 // functions declarations
 
 /// service function
-bool pressHoldButton(int i);
+bool buttonActive(int i);
 float changeSpanLinearly(int j, float base);
 
 /// buzzer functions
@@ -52,14 +66,14 @@ unsigned long updateStripDuration(unsigned long duration);
 void setup() {
   // local variables
   /// buttons
-  const int sePin = 2, swPin = 3, startPin = 4, nePin = 5, nwPin = 6;
+  const int wPin = 2, sPin = 3, startPin = 4, ePin = 5, nPin = 6;
 
   /// toggles
   const int focusPin = 14, linGeoPin = 15, singStriPin = 16;
 
   /// bounce2 aux array
-  const int inputPins[8] = {sePin, swPin,
-                            nePin, nwPin,
+  const int inputPins[8] = {wPin, sPin,
+                            ePin, nPin,
                             startPin,
                             focusPin, linGeoPin, singStriPin};
 
@@ -67,11 +81,11 @@ void setup() {
   pinMode(RELAY,  OUTPUT);
   pinMode(BUZZER, OUTPUT);
 
-  pinMode(nePin,    INPUT);
-  pinMode(nwPin,    INPUT);
+  pinMode(ePin,    INPUT);
+  pinMode(nPin,    INPUT);
   pinMode(startPin, INPUT);
-  pinMode(sePin,    INPUT);
-  pinMode(swPin,    INPUT);
+  pinMode(wPin,    INPUT);
+  pinMode(sPin,    INPUT);
 
   pinMode(focusPin,    INPUT);
   pinMode(linGeoPin,   INPUT);
@@ -84,7 +98,7 @@ void setup() {
   }
 
   lcd.begin(16,2);
-  lcd.print("retege v0.1");
+  lcd.print("retege v0.2");
   delay(2000);
   lcd.clear();
 
@@ -100,22 +114,22 @@ void loop() {
   static bool runningStatusChanged = 1;
 
   // possible timer class?
-  static unsigned long baseTimeSpan = 10000;
+  static unsigned long baseTimeSpan = 5000;
   static unsigned long evalTimeSpan = 0;
-  static byte stripNumber = 6;
-  static unsigned long stripDuration = 5000;
+  static byte stripNumber = 10;
+  static unsigned long stripDuration = 2000;
   static int geometricIndex = 0;
   static byte geometricReason = 3;
 
   // sound and countup/down
   static unsigned long lampFirstMillis = 0;
-  static unsigned long ringCount = 0;
+  static unsigned long ringCount = 1;
   static unsigned long rollingTime = 0;
 
   // update buttons
   for (int i = 0; i < 8; i++) {
     input[i].update();
-    if (input[i].rose()) {
+    if (input[i].fell() || input[i].rose()) {
       lcd.clear();
     }
   }
@@ -124,7 +138,7 @@ void loop() {
     case SETUP:
       // mode independent
       if (runningStatusChanged) {
-        ringCount = 0;
+        ringCount = 1;
         rollingTime = 0;
         lampFirstMillis = 0;
         lcd.clear();
@@ -239,9 +253,10 @@ void loop() {
       lcd.print((millis()-lampFirstMillis+10)/1000.,1);
       break;
   }
+  // loop() END
 }
 
-bool pressHoldButton(int i) {
+bool buttonActive(int i) {
   static unsigned long holdInterval = 0;
   static int holdMillis = 100;
   bool y;
@@ -253,6 +268,7 @@ bool pressHoldButton(int i) {
     y = 0;
   }
 
+  // it goes progressively faster when long pressed
   for (byte k = 1; k < 5; k++) {
     if (input[i].read() && input[i].duration()>k*1000) {
       holdMillis = 100-(k*20);
@@ -260,7 +276,7 @@ bool pressHoldButton(int i) {
   }
 
   if (input[i].fell()) {
-    holdInterval=0;
+    holdInterval = 0;
     holdMillis = 100;
   }
   return y;
@@ -277,8 +293,8 @@ unsigned long playEndStrip(byte mode, unsigned long lampRefer, float stripDurati
     return -1;
   }
 
-  if (millis()>= lampRefer - 250 + rollingInterval ) {
-    tone(BUZZER, 659, 150);
+  if (millis()>= lampRefer - 100 + rollingInterval ) {
+    tone(BUZZER, 659, 100);
   }
 
   if (millis() >= lampRefer + rollingInterval) {
@@ -369,13 +385,13 @@ unsigned long updateEvalTimeSpan(byte mode, unsigned long base, int index, byte 
 unsigned long updateBaseTimeSpan(unsigned long base) {
   unsigned long newb = base;
   int k;
-  if (pressHoldButton(NE_BUTTON)) {
+  if (buttonActive(E_BUTTON)) {
     k = 100;
-  } else if (pressHoldButton(SE_BUTTON)) {
+  } else if (buttonActive(W_BUTTON)) {
     k = -100;
-  } else if (pressHoldButton(NW_BUTTON)) {
+  } else if (buttonActive(N_BUTTON)) {
     k = 1000;
-  } else if (pressHoldButton(SW_BUTTON)) {
+  } else if (buttonActive(S_BUTTON)) {
     k = -1000;
   } else {
     k = 0;
@@ -390,45 +406,41 @@ unsigned long updateBaseTimeSpan(unsigned long base) {
   if ((int)log10(newb)+1 > (int)log10(base)+1) {
     lcd.clear(); 
   }
-  Serial.print(k);
-  Serial.print(" ");
-  Serial.print(newb);
-  Serial.print("\n");
   return newb;
 
 }
 
 byte updateGeometricReason(byte reason) {
-  if (pressHoldButton(NW_BUTTON)) {
+  if (buttonActive(N_BUTTON)) {
     reason++;
-  } else if (pressHoldButton(SW_BUTTON) && reason > 1) {
+  } else if (buttonActive(S_BUTTON) && reason > 1) {
     reason--;
   }
   return reason;
 }
 
 int updateGeometricIndex(int index) {
-  if (pressHoldButton(NE_BUTTON)) {
+  if (buttonActive(E_BUTTON)) {
     index++;
-  } else if (pressHoldButton(SE_BUTTON)) {
+  } else if (buttonActive(W_BUTTON)) {
     index--;
   }
   return index;
 }
 
 byte updateStripNumber(byte strip) {
-  if (pressHoldButton(NE_BUTTON)) {
+  if (buttonActive(E_BUTTON)) {
     strip++;
-  } else if (pressHoldButton(SE_BUTTON) && strip > 1) {
+  } else if (buttonActive(W_BUTTON) && strip > 1) {
     strip--;
   }
   return strip;
 }
 
 unsigned long updateStripDuration(unsigned long duration) {
-  if (pressHoldButton(NW_BUTTON)) {
+  if (buttonActive(N_BUTTON)) {
     duration = duration+100;
-  } else if (pressHoldButton(SW_BUTTON) && duration > 0) {
+  } else if (buttonActive(S_BUTTON) && duration > 0) {
     duration = duration-100;
   }
   return duration;
