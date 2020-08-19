@@ -16,23 +16,26 @@
 #include <Bounce2.h>
 #include <LiquidCrystal.h>
 
-#define LINEAR_SINGLE 0
-#define GEOMETRIC_SINGLE 1
-#define LINEAR_STRIP 2
-#define GEOMETRIC_STRIP 3
+// runningMode possible values
+#define LINEAR_EXPOSURE 0
+#define GEOMETRIC_EXPOSURE 1
+#define LINEAR_TEST 2
+#define GEOMETRIC_TEST 3
 
+// runningStatus possible values
 #define SETUP 0
 #define EXPOSURE 1
 #define FOCUS 2
 
-#define W_BUTTON 0
-#define S_BUTTON 1
-#define E_BUTTON 2
-#define N_BUTTON 3                           
+// 
+#define S_BUTTON 0
+#define N_BUTTON 1
+#define W_BUTTON 2
+#define E_BUTTON 3                           
 #define START_BUTTON 4
 #define FOCUS_TOGGLE 5
 #define LINEAR_GEOMETRIC_TOGGLE 6
-#define SINGLE_STRIP_TOGGLE 7
+#define EXPOSURE_TEST_TOGGLE 7
 
 #define RELAY 13
 #define BUZZER 19
@@ -48,15 +51,18 @@ bool buttonActive(int i);
 float changeSpanLinearly(int j, float base);
 
 /// buzzer functions
-unsigned long playEndStrip(byte mode, unsigned long lampRefer, float stripDuration, float baseTimeSpan, unsigned long ringCount, byte reason);
+unsigned long playEndStrip(byte mode, unsigned long lampRefer,
+  float stripDuration, float baseTimeSpan, unsigned long ringCount, byte reason);
 unsigned long playMetronome(unsigned long lampRefer, unsigned long ringCount);
 
 /// state variables functions
 byte updateRunningMode(byte runningMode, bool linGeo, bool sinStrip);
-byte updateRunningStatus(byte runningStatus, bool & runningStatusChanged, bool startRose, bool focusHigh, unsigned long rollingTime);
+byte updateRunningStatus(byte runningStatus, bool & runningStatusChanged,
+  bool startRose, bool focusHigh, unsigned long rollingTime);
 
 /// possible timer class?
-unsigned long updateEvalTimeSpan(byte mode, unsigned long base, int index, byte reason, unsigned long duration, byte strip);
+unsigned long updateEvalTimeSpan(byte mode, unsigned long base,
+  int index, byte reason, unsigned long duration, byte strip);
 unsigned long updateBaseTimeSpan(unsigned long baseTimeSpan);
 byte updateGeometricReason(byte reason);
 int updateGeometricIndex(int index);
@@ -66,30 +72,20 @@ unsigned long updateStripDuration(unsigned long duration);
 void setup() {
   // local variables
   /// buttons
-  const int wPin = 2, sPin = 3, startPin = 4, ePin = 5, nPin = 6;
+  const int sPin = 2, nPin = 3, startPin = 4, wPin = 5, ePin = 6;
 
   /// toggles
-  const int focusPin = 14, linGeoPin = 15, singStriPin = 16;
+  const int focusPin = 14, linGeoPin = 15, expTestPin = 16;
 
   /// bounce2 aux array
-  const int inputPins[8] = {wPin, sPin,
-                            ePin, nPin,
+  const int inputPins[8] = {sPin, nPin,
+                            wPin, ePin,
                             startPin,
-                            focusPin, linGeoPin, singStriPin};
+                            focusPin, linGeoPin, expTestPin};
 
   // declarations
   pinMode(RELAY,  OUTPUT);
   pinMode(BUZZER, OUTPUT);
-
-  pinMode(ePin,    INPUT);
-  pinMode(nPin,    INPUT);
-  pinMode(startPin, INPUT);
-  pinMode(wPin,    INPUT);
-  pinMode(sPin,    INPUT);
-
-  pinMode(focusPin,    INPUT);
-  pinMode(linGeoPin,   INPUT);
-  pinMode(singStriPin, INPUT);
 
   // run things
   for (int i = 0; i < 8; i++) {
@@ -101,14 +97,13 @@ void setup() {
   lcd.print("retege v0.2");
   delay(2000);
   lcd.clear();
-
-  Serial.begin(9600);
 }
 
 void loop() {
   // local variables
-  // 0 = linear single, 1 = geometric single, 2 = linear strip, 3 = geometric strip
-  static byte runningMode = LINEAR_SINGLE;
+  // 0 = linear single, 1 = geometric single;
+  // 2 = linear strip, 3 = geometric strip
+  static byte runningMode = LINEAR_EXPOSURE;
   // 0 = setup, 1 = exposure, 2 = focus
   static byte runningStatus = SETUP;
   static bool runningStatusChanged = 1;
@@ -124,6 +119,7 @@ void loop() {
   // sound and countup/down
   static unsigned long lampFirstMillis = 0;
   static unsigned long ringCount = 1;
+  static unsigned long prevRollingTime = 0;
   static unsigned long rollingTime = 0;
 
   // update buttons
@@ -133,9 +129,15 @@ void loop() {
       lcd.clear();
     }
   }
-  runningStatus = updateRunningStatus(runningStatus, runningStatusChanged, input[START_BUTTON].rose(), input[FOCUS_TOGGLE].read(), rollingTime);
+
+  runningStatus = updateRunningStatus(runningStatus, runningStatusChanged,
+    input[START_BUTTON].rose(), input[FOCUS_TOGGLE].read(),
+    rollingTime);
+
   switch (runningStatus) {
+
     case SETUP:
+
       // mode independent
       if (runningStatusChanged) {
         ringCount = 1;
@@ -145,9 +147,16 @@ void loop() {
       }
       // turn off the lamp
       digitalWrite(RELAY,LOW);
-      runningMode = updateRunningMode(runningMode,input[LINEAR_GEOMETRIC_TOGGLE].read(),input[SINGLE_STRIP_TOGGLE].read());
-      // update evalTimeSpangi
-      evalTimeSpan = updateEvalTimeSpan(runningMode, baseTimeSpan, geometricIndex, geometricReason, stripDuration, stripNumber);
+
+      runningMode = updateRunningMode(runningMode,
+        input[LINEAR_GEOMETRIC_TOGGLE].read(),
+        input[EXPOSURE_TEST_TOGGLE].read());
+
+      // update evalTimeSpan
+      evalTimeSpan = updateEvalTimeSpan(runningMode, baseTimeSpan,
+        geometricIndex, geometricReason,
+        stripDuration, stripNumber);
+
       // read buttons
       lcd.setCursor(0,0);
       lcd.print("SETUP");
@@ -155,12 +164,12 @@ void loop() {
 
       // mode dependent
       switch (runningMode) {
-        case LINEAR_SINGLE:
+        case LINEAR_EXPOSURE:
           baseTimeSpan = updateBaseTimeSpan(baseTimeSpan);
           lcd.print((float)evalTimeSpan/(float)1000,1);
           break;
 
-        case GEOMETRIC_SINGLE:
+        case GEOMETRIC_EXPOSURE:
           geometricReason = updateGeometricReason(geometricReason);
           geometricIndex = updateGeometricIndex(geometricIndex);
 
@@ -175,7 +184,7 @@ void loop() {
           lcd.print(evalTimeSpan/1000.,2);
           break;
 
-        case LINEAR_STRIP:
+        case LINEAR_TEST:
           stripDuration = updateStripDuration(stripDuration);
           stripNumber = updateStripNumber(stripNumber);
 
@@ -187,7 +196,7 @@ void loop() {
           lcd.print("s]");
           break;
 
-        case GEOMETRIC_STRIP:
+        case GEOMETRIC_TEST:
           geometricReason = updateGeometricReason(geometricReason);
           stripNumber = updateStripNumber(stripNumber);
 
@@ -206,11 +215,16 @@ void loop() {
       // mode independent
       if (runningStatusChanged) {
         rollingTime=evalTimeSpan;
-        lampFirstMillis = millis() + 10; // 10 ms buffer allows to use unsigned long
+        lampFirstMillis = millis();
         lcd.clear();
       }
       digitalWrite(RELAY,HIGH);
+
+      prevRollingTime = rollingTime;
       rollingTime = (lampFirstMillis+(evalTimeSpan)-millis());
+      if (rollingTime>prevRollingTime) {
+        rollingTime=0;
+      }
 
       lcd.setCursor(0,0);
       lcd.print("EXPOSURE");
@@ -223,17 +237,18 @@ void loop() {
 
       // mode dependent
       switch(runningMode) {
-        case LINEAR_SINGLE:
-        case GEOMETRIC_SINGLE:
+        case LINEAR_EXPOSURE:
+        case GEOMETRIC_EXPOSURE:
           ringCount = playMetronome(lampFirstMillis,ringCount);
           break;
-        case LINEAR_STRIP:
-        case GEOMETRIC_STRIP:
+        case LINEAR_TEST:
+        case GEOMETRIC_TEST:
           lcd.print("  ");
           lcd.print(ringCount);
           lcd.print("/");
           lcd.print(stripNumber);
-          ringCount = playEndStrip(runningMode, lampFirstMillis, stripDuration, baseTimeSpan, ringCount, geometricReason);
+          ringCount = playEndStrip(runningMode, lampFirstMillis,
+            stripDuration, baseTimeSpan, ringCount, geometricReason);
           break;
       }
       
@@ -242,7 +257,7 @@ void loop() {
     case FOCUS:
       // mode independent
       if (runningStatusChanged) {
-        lampFirstMillis = millis() + 10; // 10 ms buffer allows to use unsigned long
+        lampFirstMillis = millis();
         lcd.clear();
       }
       digitalWrite(RELAY,HIGH);
@@ -282,12 +297,14 @@ bool buttonActive(int i) {
   return y;
 }
 
-unsigned long playEndStrip(byte mode, unsigned long lampRefer, float stripDuration, float baseTimeSpan, unsigned long ringCount, byte reason) {
+unsigned long playEndStrip(byte mode, unsigned long lampRefer,
+  float stripDuration, float baseTimeSpan,unsigned long ringCount, byte reason) {
+
   float rollingInterval;
 
-  if (mode == LINEAR_STRIP) {
+  if (mode == LINEAR_TEST) {
     rollingInterval = baseTimeSpan + stripDuration*ringCount;
-  } else if (mode == GEOMETRIC_STRIP) {
+  } else if (mode == GEOMETRIC_TEST) {
     rollingInterval = baseTimeSpan*pow(2,(1.*ringCount)/(1.*reason));
   } else {
     return -1;
@@ -316,15 +333,15 @@ byte updateRunningMode(byte runningMode, bool linGeo, bool sinStrip) {
   byte newRunningMode;
   if (!linGeo) {
     if (!sinStrip) {
-      newRunningMode = LINEAR_SINGLE;
+      newRunningMode = LINEAR_EXPOSURE;
     } else {
-      newRunningMode = LINEAR_STRIP;
+      newRunningMode = LINEAR_TEST;
     }
   } else {
     if (!sinStrip) {
-      newRunningMode = GEOMETRIC_SINGLE;
+      newRunningMode = GEOMETRIC_EXPOSURE;
     } else {
-      newRunningMode = GEOMETRIC_STRIP;
+      newRunningMode = GEOMETRIC_TEST;
     }
   }
   if (newRunningMode != runningMode) {
@@ -333,7 +350,8 @@ byte updateRunningMode(byte runningMode, bool linGeo, bool sinStrip) {
   return newRunningMode;
 }
 
-byte updateRunningStatus(byte runningStatus, bool & runningStatusChanged, bool startRose, bool focusHigh, unsigned long rollingTime) {
+byte updateRunningStatus(byte runningStatus, bool & runningStatusChanged,
+  bool startRose, bool focusHigh, unsigned long rollingTime) {
   byte newRunningStatus = runningStatus;
   switch (runningStatus) {
     case SETUP:
@@ -363,19 +381,20 @@ byte updateRunningStatus(byte runningStatus, bool & runningStatusChanged, bool s
   return newRunningStatus;
 }
 
-unsigned long updateEvalTimeSpan(byte mode, unsigned long base, int index, byte reason, unsigned long duration, byte strip){
+unsigned long updateEvalTimeSpan(byte mode, unsigned long base,
+  int index, byte reason, unsigned long duration, byte strip){
   unsigned long eval;
   switch (mode) {
-      case LINEAR_SINGLE:
+      case LINEAR_EXPOSURE:
       eval = base;
       break;
-      case GEOMETRIC_SINGLE:
+      case GEOMETRIC_EXPOSURE:
       eval = base*(pow((float)2,((float)index)/((float)reason)));
       break;
-      case LINEAR_STRIP:
+      case LINEAR_TEST:
       eval = base+(duration*strip);
       break;
-      case GEOMETRIC_STRIP:
+      case GEOMETRIC_TEST:
       eval = base*(pow((float)2,((float)strip)/((float)reason)));
       break;
     }  
