@@ -12,9 +12,11 @@
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
+
 #include <Arduino.h>
 #include <Bounce2.h>
 #include <LiquidCrystal.h>
+#include "retege.h"
 
 // runningMode possible values
 #define LINEAR_EXPOSURE 0
@@ -27,7 +29,7 @@
 #define EXPOSURE 1
 #define FOCUS 2
 
-// 
+// buttons coding
 #define S_BUTTON 0
 #define N_BUTTON 1
 #define W_BUTTON 2
@@ -37,37 +39,27 @@
 #define LINEAR_GEOMETRIC_TOGGLE 6
 #define EXPOSURE_TEST_TOGGLE 7
 
+// pinout
 #define RELAY 13
 #define BUZZER 19
 
 // objects
 LiquidCrystal lcd(7, 8, 9, 10, 11, 12);
 Bounce * input = new Bounce[8];
+retege mTimer = retege();
 
-// functions declarations
-
-/// service function
+// function declarations
 bool buttonActive(int i);
-float changeSpanLinearly(int j, float base);
+char updateRunningStatus(char runningStatus, bool & runningStatusChanged,
+  bool startRose, bool focusHigh, unsigned long rollingTime);
+char updateRunningMode(bool linGeo, bool sinStrip);
 
 /// buzzer functions
-unsigned long playEndStrip(byte mode, unsigned long lampRefer,
-  float stripDuration, float baseTimeSpan, unsigned long ringCount, byte reason);
+unsigned long playEndStrip(char mode, unsigned long lampRefer,
+  unsigned long ringCount);
 unsigned long playMetronome(unsigned long lampRefer, unsigned long ringCount);
 
-/// state variables functions
-byte updateRunningMode(byte runningMode, bool linGeo, bool sinStrip);
-byte updateRunningStatus(byte runningStatus, bool & runningStatusChanged,
-  bool startRose, bool focusHigh, unsigned long rollingTime);
-
-/// possible timer class?
-unsigned long updateEvalTimeSpan(byte mode, unsigned long base,
-  int index, byte reason, unsigned long duration, byte strip);
-unsigned long updateBaseTimeSpan(unsigned long baseTimeSpan);
-byte updateGeometricReason(byte reason);
-int updateGeometricIndex(int index);
-byte updateStripNumber(byte strip);
-unsigned long updateStripDuration(unsigned long duration);
+// arduino functions
 
 void setup() {
   // local variables
@@ -80,8 +72,8 @@ void setup() {
   /// bounce2 aux array
   const int inputPins[8] = {sPin, nPin,
                             wPin, ePin,
-                            startPin,
-                            focusPin, linGeoPin, expTestPin};
+                            startPin, focusPin,
+                            linGeoPin, expTestPin};
 
   // declarations
   pinMode(RELAY,  OUTPUT);
@@ -90,11 +82,11 @@ void setup() {
   // run things
   for (int i = 0; i < 8; i++) {
     input[i].attach(inputPins[i], INPUT);
-    input[i].interval(40);
+    input[i].interval(25);
   }
 
   lcd.begin(16,2);
-  lcd.print("retege v0.2");
+  lcd.print("retege v0.3");
   delay(2000);
   lcd.clear();
 }
@@ -103,18 +95,11 @@ void loop() {
   // local variables
   // 0 = linear single, 1 = geometric single;
   // 2 = linear strip, 3 = geometric strip
-  static byte runningMode = LINEAR_EXPOSURE;
+  static char runningMode = LINEAR_EXPOSURE;
+  static char newRunningMode = LINEAR_EXPOSURE;
   // 0 = setup, 1 = exposure, 2 = focus
-  static byte runningStatus = SETUP;
+  static char runningStatus = SETUP;
   static bool runningStatusChanged = 1;
-
-  // possible timer class?
-  static unsigned long baseTimeSpan = 5000;
-  static unsigned long evalTimeSpan = 0;
-  static byte stripNumber = 10;
-  static unsigned long stripDuration = 2000;
-  static int geometricIndex = 0;
-  static byte geometricReason = 3;
 
   // sound and countup/down
   static unsigned long lampFirstMillis = 0;
@@ -131,111 +116,77 @@ void loop() {
   }
 
   runningStatus = updateRunningStatus(runningStatus, runningStatusChanged,
-    input[START_BUTTON].rose(), input[FOCUS_TOGGLE].read(),
-    rollingTime);
+    input[START_BUTTON].rose(), input[FOCUS_TOGGLE].read(), rollingTime);
 
   switch (runningStatus) {
-
     case SETUP:
+      // turn off the lamp
+      digitalWrite(RELAY,LOW);
 
-      // mode independent
+      // runningMode independent
       if (runningStatusChanged) {
         ringCount = 1;
         rollingTime = 0;
         lampFirstMillis = 0;
         lcd.clear();
       }
-      // turn off the lamp
-      digitalWrite(RELAY,LOW);
 
-      runningMode = updateRunningMode(runningMode,
+      // runningMode dependent
+      newRunningMode = updateRunningMode(
         input[LINEAR_GEOMETRIC_TOGGLE].read(),
         input[EXPOSURE_TEST_TOGGLE].read());
 
-      // update evalTimeSpan
-      evalTimeSpan = updateEvalTimeSpan(runningMode, baseTimeSpan,
-        geometricIndex, geometricReason,
-        stripDuration, stripNumber);
-
-      // read buttons
-      lcd.setCursor(0,0);
-      lcd.print("SETUP");
-      lcd.setCursor(0,1);
-
-      // mode dependent
-      switch (runningMode) {
-        case LINEAR_EXPOSURE:
-          baseTimeSpan = updateBaseTimeSpan(baseTimeSpan);
-          lcd.print((float)evalTimeSpan/(float)1000,1);
-          break;
-
-        case GEOMETRIC_EXPOSURE:
-          geometricReason = updateGeometricReason(geometricReason);
-          geometricIndex = updateGeometricIndex(geometricIndex);
-
-          lcd.print(baseTimeSpan/1000.,1);
-          if (geometricIndex>=0) {
-            lcd.print("+");
-          }
-          lcd.print(geometricIndex);
-          lcd.print("/");
-          lcd.print(geometricReason);
-          lcd.print("=");
-          lcd.print(evalTimeSpan/1000.,2);
-          break;
-
-        case LINEAR_TEST:
-          stripDuration = updateStripDuration(stripDuration);
-          stripNumber = updateStripNumber(stripNumber);
-
-          lcd.print(baseTimeSpan/1000.,1);
-          lcd.print("+[");
-          lcd.print(stripNumber);
-          lcd.print("*");
-          lcd.print(stripDuration/1000.,1);
-          lcd.print("s]");
-          break;
-
-        case GEOMETRIC_TEST:
-          geometricReason = updateGeometricReason(geometricReason);
-          stripNumber = updateStripNumber(stripNumber);
-
-          lcd.print(baseTimeSpan/1000.,1);
-          lcd.print("+[");
-          lcd.print(stripNumber);
-          lcd.print("*1/");
-          lcd.print(geometricReason);
-          lcd.print("]");
-          break;
+      if (newRunningMode != runningMode) {
+        runningMode = newRunningMode;
+        lcd.clear();
       }
 
-      break; // end SETUP case
+      switch (runningMode) {
+        case LINEAR_EXPOSURE:
+          mTimer.updateBaseTimeSeconds(buttonActive(N_BUTTON),
+            buttonActive(S_BUTTON));
+          mTimer.updateBaseTimeTenths(buttonActive(E_BUTTON),
+            buttonActive(W_BUTTON));
+          break;
+        case GEOMETRIC_EXPOSURE:
+          mTimer.updateReason(buttonActive(N_BUTTON),
+            buttonActive(S_BUTTON));
+          mTimer.updateIndex(buttonActive(E_BUTTON),
+            buttonActive(W_BUTTON));
+          break;
+        case LINEAR_TEST:
+          mTimer.updateStripDuration(buttonActive(N_BUTTON),
+            buttonActive(S_BUTTON));
+          mTimer.updateStripNumber(buttonActive(E_BUTTON),
+            buttonActive(W_BUTTON));
+          break;
+        case GEOMETRIC_TEST:
+          mTimer.updateReason(buttonActive(N_BUTTON),
+            buttonActive(S_BUTTON));
+          mTimer.updateStripNumber(buttonActive(E_BUTTON),
+            buttonActive(W_BUTTON));
+          break;
+      }
+      break;
 
     case EXPOSURE:
-      // mode independent
+      // runningMode independent
+      digitalWrite(RELAY,HIGH);
+
       if (runningStatusChanged) {
-        rollingTime=evalTimeSpan;
+        rollingTime=mTimer.evaluateTime(runningMode);
         lampFirstMillis = millis();
         lcd.clear();
       }
-      digitalWrite(RELAY,HIGH);
 
       prevRollingTime = rollingTime;
-      rollingTime = (lampFirstMillis+(evalTimeSpan)-millis());
+      rollingTime = (lampFirstMillis+(mTimer.evaluateTime(runningMode))
+        -millis());
       if (rollingTime>prevRollingTime) {
         rollingTime=0;
       }
 
-      lcd.setCursor(0,0);
-      lcd.print("EXPOSURE");
-      lcd.setCursor(0,1);
-      lcd.print(rollingTime/1000.,1);
-      if ((int)log10(rollingTime)+1 != (int)log10(rollingTime+100)+1) {
-          //clear the screen when the number of digit changes
-          lcd.clear(); 
-      }
-
-      // mode dependent
+      // runningMode dependent
       switch(runningMode) {
         case LINEAR_EXPOSURE:
         case GEOMETRIC_EXPOSURE:
@@ -243,16 +194,11 @@ void loop() {
           break;
         case LINEAR_TEST:
         case GEOMETRIC_TEST:
-          lcd.print("  ");
-          lcd.print(ringCount);
-          lcd.print("/");
-          lcd.print(stripNumber);
-          ringCount = playEndStrip(runningMode, lampFirstMillis,
-            stripDuration, baseTimeSpan, ringCount, geometricReason);
+          ringCount = playEndStrip(runningMode, lampFirstMillis, ringCount);
           break;
       }
-      
-      break; // end EXPOSURE case
+
+      break;
 
     case FOCUS:
       // mode independent
@@ -262,14 +208,12 @@ void loop() {
       }
       digitalWrite(RELAY,HIGH);
       ringCount = playMetronome(lampFirstMillis,ringCount);
-      lcd.setCursor(0,0);
-      lcd.print("FOCUS");
-      lcd.setCursor(0,1);
-      lcd.print((millis()-lampFirstMillis+10)/1000.,1);
       break;
   }
   // loop() END
 }
+
+// service functions
 
 bool buttonActive(int i) {
   static unsigned long holdInterval = 0;
@@ -284,7 +228,7 @@ bool buttonActive(int i) {
   }
 
   // it goes progressively faster when long pressed
-  for (byte k = 1; k < 5; k++) {
+  for (char k = 1; k < 5; k++) {
     if (input[i].read() && input[i].duration()>k*1000) {
       holdMillis = 100-(k*20);
     }
@@ -297,62 +241,9 @@ bool buttonActive(int i) {
   return y;
 }
 
-unsigned long playEndStrip(byte mode, unsigned long lampRefer,
-  float stripDuration, float baseTimeSpan,unsigned long ringCount, byte reason) {
-
-  float rollingInterval;
-
-  if (mode == LINEAR_TEST) {
-    rollingInterval = baseTimeSpan + stripDuration*ringCount;
-  } else if (mode == GEOMETRIC_TEST) {
-    rollingInterval = baseTimeSpan*pow(2,(1.*ringCount)/(1.*reason));
-  } else {
-    return -1;
-  }
-
-  if (millis()>= lampRefer - 100 + rollingInterval ) {
-    tone(BUZZER, 659, 100);
-  }
-
-  if (millis() >= lampRefer + rollingInterval) {
-    tone(BUZZER, 880, 100);
-    ringCount++;
-  }
-  return ringCount;
-}
-
-unsigned long playMetronome(unsigned long lampRefer, unsigned long ringCount) {
-  if (millis()>=lampRefer+ringCount*1000) { // buzz every second
-    tone(BUZZER, 987, 100);
-    ringCount++;
-  }
-  return ringCount;
-}
-
-byte updateRunningMode(byte runningMode, bool linGeo, bool sinStrip) {
-  byte newRunningMode;
-  if (!linGeo) {
-    if (!sinStrip) {
-      newRunningMode = LINEAR_EXPOSURE;
-    } else {
-      newRunningMode = LINEAR_TEST;
-    }
-  } else {
-    if (!sinStrip) {
-      newRunningMode = GEOMETRIC_EXPOSURE;
-    } else {
-      newRunningMode = GEOMETRIC_TEST;
-    }
-  }
-  if (newRunningMode != runningMode) {
-    lcd.clear();
-  }
-  return newRunningMode;
-}
-
-byte updateRunningStatus(byte runningStatus, bool & runningStatusChanged,
+char updateRunningStatus(char runningStatus, bool & runningStatusChanged,
   bool startRose, bool focusHigh, unsigned long rollingTime) {
-  byte newRunningStatus = runningStatus;
+  char newRunningStatus = runningStatus;
   switch (runningStatus) {
     case SETUP:
       if (startRose) {
@@ -381,86 +272,55 @@ byte updateRunningStatus(byte runningStatus, bool & runningStatusChanged,
   return newRunningStatus;
 }
 
-unsigned long updateEvalTimeSpan(byte mode, unsigned long base,
-  int index, byte reason, unsigned long duration, byte strip){
-  unsigned long eval;
-  switch (mode) {
-      case LINEAR_EXPOSURE:
-      eval = base;
-      break;
-      case GEOMETRIC_EXPOSURE:
-      eval = base*(pow((float)2,((float)index)/((float)reason)));
-      break;
-      case LINEAR_TEST:
-      eval = base+(duration*strip);
-      break;
-      case GEOMETRIC_TEST:
-      eval = base*(pow((float)2,((float)strip)/((float)reason)));
-      break;
-    }  
-  return eval; 
-}
-
-unsigned long updateBaseTimeSpan(unsigned long base) {
-  unsigned long newb = base;
-  int k;
-  if (buttonActive(E_BUTTON)) {
-    k = 100;
-  } else if (buttonActive(W_BUTTON)) {
-    k = -100;
-  } else if (buttonActive(N_BUTTON)) {
-    k = 1000;
-  } else if (buttonActive(S_BUTTON)) {
-    k = -1000;
+char updateRunningMode(bool linGeo, bool expTest) {
+  char newRunningMode;
+  if (!linGeo) {
+    if (!expTest) {
+      newRunningMode = LINEAR_EXPOSURE;
+    } else {
+      newRunningMode = LINEAR_TEST;
+    }
   } else {
-    k = 0;
+    if (!expTest) {
+      newRunningMode = GEOMETRIC_EXPOSURE;
+    } else {
+      newRunningMode = GEOMETRIC_TEST;
+    }
   }
-  if ((long)base+k < 0) {
-    newb = 0;
-  } else if (base+k > 999900) {
-    newb = 999900;
+  return newRunningMode;
+}
+
+// beeper function
+
+unsigned long playEndStrip(char mode, unsigned long lampRefer,
+  unsigned long ringCount) {
+
+  float rollingInterval;
+
+  if (mode == LINEAR_TEST) {
+    rollingInterval = mTimer.getBaseTime() + mTimer.getstripDrt()*ringCount;
+  } else if (mode == GEOMETRIC_TEST) {
+    rollingInterval = mTimer.getBaseTime() * 
+      pow(2,(1.*ringCount)/(1.*mTimer.getReason()));
   } else {
-    newb = base+k;
+    return -1;
   }
-  if ((int)log10(newb)+1 > (int)log10(base)+1) {
-    lcd.clear(); 
-  }
-  return newb;
 
+  if (millis()>= lampRefer - 100 + rollingInterval ) {
+    tone(BUZZER, 659, 100);
+  }
+
+  if (millis() >= lampRefer + rollingInterval) {
+    tone(BUZZER, 880, 100);
+    ringCount++;
+  }
+  return ringCount;
 }
 
-byte updateGeometricReason(byte reason) {
-  if (buttonActive(N_BUTTON)) {
-    reason++;
-  } else if (buttonActive(S_BUTTON) && reason > 1) {
-    reason--;
+unsigned long playMetronome(unsigned long lampRefer, unsigned long ringCount) {
+  if (millis()>=lampRefer+ringCount*1000) { // buzz every second
+    tone(BUZZER, 987, 100);
+    ringCount++;
   }
-  return reason;
-}
-
-int updateGeometricIndex(int index) {
-  if (buttonActive(E_BUTTON)) {
-    index++;
-  } else if (buttonActive(W_BUTTON)) {
-    index--;
-  }
-  return index;
-}
-
-byte updateStripNumber(byte strip) {
-  if (buttonActive(E_BUTTON)) {
-    strip++;
-  } else if (buttonActive(W_BUTTON) && strip > 1) {
-    strip--;
-  }
-  return strip;
-}
-
-unsigned long updateStripDuration(unsigned long duration) {
-  if (buttonActive(N_BUTTON)) {
-    duration = duration+100;
-  } else if (buttonActive(S_BUTTON) && duration > 0) {
-    duration = duration-100;
-  }
-  return duration;
+  return ringCount;
 }
