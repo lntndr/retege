@@ -101,20 +101,25 @@ void setup() {
 }
 
 void loop() {
+
   // local variables
   // 0 = linear single, 1 = geometric single;
   // 2 = linear strip, 3 = geometric strip
   static byte runningMode = LINEAR_EXPOSURE;
   static byte newRunningMode = LINEAR_EXPOSURE;
+
   // 0 = setup, 1 = exposure, 2 = focus
   static byte runningStatus = SETUP;
   static bool runningStatusChanged = 1;
 
-  // sound and countup/down
-  static unsigned long lampFirstMillis = 0;
-  static unsigned long ringCount = 1;
-  static unsigned long prevRollingTime = 0;
-  static unsigned long rollingTime = 0;
+  // lamp and beeper
+  static unsigned long lampFirstMillis = 0; // marks the millisecond when the 
+                                            // lamp is turned on
+  static unsigned long ringCount = 1;       // number of times that the buzzer
+                                            // made a sound since
+                                            // lampfirstmillis
+  static unsigned long prevRollingTime = 0; // timer value
+  static unsigned long rollingTime = 0;     //
 
   // update buttons
   for (int i = 0; i < 8; i++) {
@@ -126,12 +131,12 @@ void loop() {
     }
   }
 
+  // runningStatus main switch
   runningStatus = updateRunningStatus(runningStatus, runningStatusChanged,
     input[START_BUTTON].rose(), input[FOCUS_TOGGLE].read(), rollingTime);
 
   switch (runningStatus) {
     case SETUP:
-      // turn off the lamp
       digitalWrite(RELAY,LOW);
 
       // runningMode independent
@@ -144,6 +149,7 @@ void loop() {
         #endif
       }
 
+      /// display output
       #ifdef LCD162
         lcd.setCursor(0,0);
         lcd.print("SETUP");
@@ -160,11 +166,14 @@ void loop() {
           lcd.clear();
         #endif
       }
+
+      /// display output
       #ifdef LCD162
             lcd.setCursor(0,1);
             lcd.print(mTimer.getLCD162SetupString(runningMode));
       #endif
 
+      /// update variables by reading NSEW buttons
       switch (runningMode) {
         case LINEAR_EXPOSURE:
           mTimer.updateBaseTimeSeconds(buttonActive(N_BUTTON),
@@ -231,8 +240,8 @@ void loop() {
         case GEOMETRIC_TEST:
           #ifdef LCD162
             lcd.setCursor(0,1);
-            lcd.print(String(ringCount)+"/"+String(mTimer.getStripNbr())+" ");
-            lcd.print((float)rollingTime/1000.,1);
+            lcd.print(String(ringCount)+"/"+String(mTimer.getStripNbr())+" "+
+                      String((float)rollingTime/1000.,1));
           #endif
           ringCount = playEndStrip(runningMode, lampFirstMillis, ringCount);
           break;
@@ -254,7 +263,7 @@ void loop() {
         lcd.setCursor(0,0);
         lcd.print("FOCUS");
         lcd.setCursor(0,1);
-        lcd.print((millis()-lampFirstMillis+10)/1000.,1);
+        lcd.print((millis()-lampFirstMillis+10)/1000.,1); // counts up
       #endif
 
       break;
@@ -282,7 +291,6 @@ bool buttonActive(int i) {
       holdMillis = 100-(k*20);
     }
   }
-
   if (input[i].fell()) {
     holdInterval = 0;
     holdMillis = 100;
@@ -339,7 +347,7 @@ byte updateRunningMode(bool linGeo, bool expTest) {
   return newRunningMode;
 }
 
-// beeper function
+// beeper functions
 
 unsigned long playEndStrip(byte mode, unsigned long lampRefer,
   unsigned long ringCount) {
@@ -360,6 +368,8 @@ unsigned long playEndStrip(byte mode, unsigned long lampRefer,
   }
 
   if (millis() >= lampRefer - 5 + rollingInterval) {
+    // -5 us guarantees the double tone even for the last test strip when the 
+    // lamp turns off
     tone(BUZZER, 880, 100);
     ringCount++;
   }
