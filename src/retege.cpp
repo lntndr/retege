@@ -1,26 +1,25 @@
 #include "retege.h"
-#include <math.h>
 
 retege::retege() {
     baseTime = 5000;
     reason = 3;
     index = 1;
     stripNbr = 6;
-    stripDrt = 2;
+    stripDrt = 2000;
 }
 
-unsigned long retege::updatePrivate(unsigned long target, unsigned long value) {
+unsigned long retege::updatePrivate(unsigned long target, int val) {
     unsigned long u = target;
-    if ((long)target+value < 0) {
-        u = 0;
+    if ((long)target+val < 1) {
+        u = 1;
     } else {
-        u = target+value;
+        u = target+val;
     }
     return u;
 }
 
-char retege::updatePrivate(char target, char value) {
-    return target+value;
+int retege::updatePrivate(int target, int val) {
+    return target+val;
 }
 // Methods
 unsigned long retege::evaluateTime(char runningMode) {
@@ -36,7 +35,7 @@ unsigned long retege::evaluateTime(char runningMode) {
             eval = baseTime+(stripNbr*stripDrt);
             break;
         case 3: // GEOMETRIC_TEST
-            eval = baseTime+(pow((float)2,((float)stripNbr)/((float)reason)));
+            eval = baseTime*(pow((float)2,((float)stripNbr)/((float)reason)));
             break;
         default:
             eval = 0;
@@ -50,10 +49,10 @@ unsigned long retege::getBaseTime() {
 unsigned long retege::getReason() {
     return reason;
 }
-unsigned long retege::getstripNbr() {
+unsigned long retege::getStripNbr() {
     return stripNbr;
 }
-unsigned long retege::getstripDrt() {
+unsigned long retege::getStripDrt() {
     return stripDrt;
 }
 char retege::getIndex() {
@@ -76,10 +75,40 @@ void retege::updateReason(bool plus, bool minus) {
     if (minus) reason = updatePrivate(reason,-1);
 }
 void retege::updateStripDuration(bool plus, bool minus) {
-    if (plus) stripDrt = updatePrivate(stripDrt,1);
-    if (minus) stripDrt = updatePrivate(stripDrt,-1);
+    if (plus) stripDrt = updatePrivate(stripDrt,100);
+    if (minus) stripDrt = updatePrivate(stripDrt,-100);
 }
 void retege::updateStripNumber(bool plus, bool minus) {
     if (plus) stripNbr = updatePrivate(stripNbr,1);
     if (minus) stripNbr = updatePrivate(stripNbr,-1);
+}
+String retege::getLCD162SetupString(char runningMode) {
+    String s = String();
+    switch (runningMode) {
+        case 0: // LINEAR_EXPOSURE
+            s = String((float)baseTime/1000.,1);
+            break;
+        case 1: // GEOMETRIC_EXPOSURE
+            if (index >= 0) {
+                s = String((float)baseTime/1000.,1)+
+                    "+"+String(index)+"/"+String(reason)+
+                    "="+String(float(evaluateTime(runningMode))/1000.,1);
+            } else {
+                s = String((float)baseTime/1000.,1)+
+                    String(index)+"/"+String(reason)+
+                    "="+String(float(evaluateTime(runningMode))/1000.,1);
+            }
+            break;
+        case 2: // LINEAR_TEST
+            s = String((float)baseTime/1000.,1)+
+                "+["+String(stripNbr)+"*"+String((float)stripDrt/1000,1)+"s]";
+            break;
+        case 3: // GEOMETRIC_TEST
+            s = String((float)baseTime/1000.,1)+
+                "+["+String(stripNbr)+"*1/"+String(reason)+"]";
+            break;
+        default:
+            break;
+    }
+    return s;
 }

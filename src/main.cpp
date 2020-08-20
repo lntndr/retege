@@ -15,8 +15,16 @@
 
 #include <Arduino.h>
 #include <Bounce2.h>
-#include <LiquidCrystal.h>
 #include "retege.h"
+
+#define LCD162
+//#define SEG74
+#ifdef LCD162
+  #include <LiquidCrystal.h>
+#endif
+#ifdef SEG74
+  //blablabla
+#endif
 
 // runningMode possible values
 #define LINEAR_EXPOSURE 0
@@ -50,12 +58,12 @@ retege mTimer = retege();
 
 // function declarations
 bool buttonActive(int i);
-char updateRunningStatus(char runningStatus, bool & runningStatusChanged,
+byte updateRunningStatus(byte runningStatus, bool & runningStatusChanged,
   bool startRose, bool focusHigh, unsigned long rollingTime);
-char updateRunningMode(bool linGeo, bool sinStrip);
+byte updateRunningMode(bool linGeo, bool sinStrip);
 
 /// buzzer functions
-unsigned long playEndStrip(char mode, unsigned long lampRefer,
+unsigned long playEndStrip(byte mode, unsigned long lampRefer,
   unsigned long ringCount);
 unsigned long playMetronome(unsigned long lampRefer, unsigned long ringCount);
 
@@ -84,21 +92,22 @@ void setup() {
     input[i].attach(inputPins[i], INPUT);
     input[i].interval(25);
   }
-
-  lcd.begin(16,2);
-  lcd.print("retege v0.3");
-  delay(2000);
-  lcd.clear();
+  #ifdef LCD162
+    lcd.begin(16,2);
+    lcd.print("retege v0.3");
+    delay(2000);
+    lcd.clear();
+  #endif
 }
 
 void loop() {
   // local variables
   // 0 = linear single, 1 = geometric single;
   // 2 = linear strip, 3 = geometric strip
-  static char runningMode = LINEAR_EXPOSURE;
-  static char newRunningMode = LINEAR_EXPOSURE;
+  static byte runningMode = LINEAR_EXPOSURE;
+  static byte newRunningMode = LINEAR_EXPOSURE;
   // 0 = setup, 1 = exposure, 2 = focus
-  static char runningStatus = SETUP;
+  static byte runningStatus = SETUP;
   static bool runningStatusChanged = 1;
 
   // sound and countup/down
@@ -111,7 +120,9 @@ void loop() {
   for (int i = 0; i < 8; i++) {
     input[i].update();
     if (input[i].fell() || input[i].rose()) {
-      lcd.clear();
+      #ifdef LCD162
+        lcd.clear();
+      #endif
     }
   }
 
@@ -128,8 +139,15 @@ void loop() {
         ringCount = 1;
         rollingTime = 0;
         lampFirstMillis = 0;
-        lcd.clear();
+        #ifdef LCD162
+          lcd.clear();
+        #endif
       }
+
+      #ifdef LCD162
+        lcd.setCursor(0,0);
+        lcd.print("SETUP");
+      #endif
 
       // runningMode dependent
       newRunningMode = updateRunningMode(
@@ -138,8 +156,14 @@ void loop() {
 
       if (newRunningMode != runningMode) {
         runningMode = newRunningMode;
-        lcd.clear();
+        #ifdef LCD162
+          lcd.clear();
+        #endif
       }
+      #ifdef LCD162
+            lcd.setCursor(0,1);
+            lcd.print(mTimer.getLCD162SetupString(runningMode));
+      #endif
 
       switch (runningMode) {
         case LINEAR_EXPOSURE:
@@ -176,7 +200,9 @@ void loop() {
       if (runningStatusChanged) {
         rollingTime=mTimer.evaluateTime(runningMode);
         lampFirstMillis = millis();
-        lcd.clear();
+        #ifdef LCD162
+          lcd.clear();
+        #endif
       }
 
       prevRollingTime = rollingTime;
@@ -186,14 +212,28 @@ void loop() {
         rollingTime=0;
       }
 
+      #ifdef LCD162
+        lcd.setCursor(0,0);
+        lcd.print("EXPOSURE");
+      #endif
+
       // runningMode dependent
       switch(runningMode) {
         case LINEAR_EXPOSURE:
         case GEOMETRIC_EXPOSURE:
+          #ifdef LCD162
+            lcd.setCursor(0,1);
+            lcd.print((float)rollingTime/1000.,1);
+          #endif
           ringCount = playMetronome(lampFirstMillis,ringCount);
           break;
         case LINEAR_TEST:
         case GEOMETRIC_TEST:
+          #ifdef LCD162
+            lcd.setCursor(0,1);
+            lcd.print(String(ringCount)+"/"+String(mTimer.getStripNbr())+" ");
+            lcd.print((float)rollingTime/1000.,1);
+          #endif
           ringCount = playEndStrip(runningMode, lampFirstMillis, ringCount);
           break;
       }
@@ -204,10 +244,19 @@ void loop() {
       // mode independent
       if (runningStatusChanged) {
         lampFirstMillis = millis();
-        lcd.clear();
+        #ifdef LCD162
+          lcd.clear();
+        #endif
       }
       digitalWrite(RELAY,HIGH);
       ringCount = playMetronome(lampFirstMillis,ringCount);
+      #ifdef LCD162
+        lcd.setCursor(0,0);
+        lcd.print("FOCUS");
+        lcd.setCursor(0,1);
+        lcd.print((millis()-lampFirstMillis+10)/1000.,1);
+      #endif
+
       break;
   }
   // loop() END
@@ -228,7 +277,7 @@ bool buttonActive(int i) {
   }
 
   // it goes progressively faster when long pressed
-  for (char k = 1; k < 5; k++) {
+  for (byte k = 1; k < 5; k++) {
     if (input[i].read() && input[i].duration()>k*1000) {
       holdMillis = 100-(k*20);
     }
@@ -241,9 +290,9 @@ bool buttonActive(int i) {
   return y;
 }
 
-char updateRunningStatus(char runningStatus, bool & runningStatusChanged,
+byte updateRunningStatus(byte runningStatus, bool & runningStatusChanged,
   bool startRose, bool focusHigh, unsigned long rollingTime) {
-  char newRunningStatus = runningStatus;
+  byte newRunningStatus = runningStatus;
   switch (runningStatus) {
     case SETUP:
       if (startRose) {
@@ -272,8 +321,8 @@ char updateRunningStatus(char runningStatus, bool & runningStatusChanged,
   return newRunningStatus;
 }
 
-char updateRunningMode(bool linGeo, bool expTest) {
-  char newRunningMode;
+byte updateRunningMode(bool linGeo, bool expTest) {
+  byte newRunningMode;
   if (!linGeo) {
     if (!expTest) {
       newRunningMode = LINEAR_EXPOSURE;
@@ -292,13 +341,13 @@ char updateRunningMode(bool linGeo, bool expTest) {
 
 // beeper function
 
-unsigned long playEndStrip(char mode, unsigned long lampRefer,
+unsigned long playEndStrip(byte mode, unsigned long lampRefer,
   unsigned long ringCount) {
 
   float rollingInterval;
 
   if (mode == LINEAR_TEST) {
-    rollingInterval = mTimer.getBaseTime() + mTimer.getstripDrt()*ringCount;
+    rollingInterval = mTimer.getBaseTime() + mTimer.getStripDrt()*ringCount;
   } else if (mode == GEOMETRIC_TEST) {
     rollingInterval = mTimer.getBaseTime() * 
       pow(2,(1.*ringCount)/(1.*mTimer.getReason()));
@@ -307,10 +356,10 @@ unsigned long playEndStrip(char mode, unsigned long lampRefer,
   }
 
   if (millis()>= lampRefer - 100 + rollingInterval ) {
-    tone(BUZZER, 659, 100);
+    tone(BUZZER, 659, 95);
   }
 
-  if (millis() >= lampRefer + rollingInterval) {
+  if (millis() >= lampRefer - 5 + rollingInterval) {
     tone(BUZZER, 880, 100);
     ringCount++;
   }

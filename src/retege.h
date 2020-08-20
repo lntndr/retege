@@ -1,15 +1,17 @@
 #ifndef RETEGE_H
 #define RETEGE_H
+#include <math.h>
+#include <Arduino.h>
 
 class retege {
     private:
         unsigned long baseTime;
         unsigned long reason;
-        char index;
+        int index;
         unsigned long stripNbr;
         unsigned long stripDrt;
-        unsigned long updatePrivate(unsigned long target, unsigned long value);
-        char updatePrivate(char target, char value);
+        unsigned long updatePrivate(unsigned long target, int val);
+        int updatePrivate(int target, int val);
 
     public:
         // Constructors
@@ -20,8 +22,8 @@ class retege {
 
         unsigned long getBaseTime();
         unsigned long getReason();
-        unsigned long getstripNbr();
-        unsigned long getstripDrt();
+        unsigned long getStripNbr();
+        unsigned long getStripDrt();
         char getIndex();
 
         void updateBaseTimeSeconds(bool plus, bool minus);
@@ -30,6 +32,8 @@ class retege {
         void updateReason(bool plus, bool minus);
         void updateStripDuration(bool plus, bool minus);
         void updateStripNumber(bool plus, bool minus);
+
+        String getLCD162SetupString(char runningMode);
 };
 
 #endif
