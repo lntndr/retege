@@ -48,7 +48,7 @@
 #define EXPOSURE_TEST_TOGGLE 7
 
 // pinout
-#define RELAY 13
+#define RELAY 15
 #define BUZZER 19
 
 // objects
@@ -59,7 +59,7 @@ retege mTimer = retege();
 // function declarations
 bool buttonActive(int i);
 byte updateRunningStatus(byte runningStatus, bool & runningStatusChanged,
-  bool startRose, bool focusHigh, unsigned long rollingTime);
+  bool startFell, bool focusHigh, unsigned long rollingTime);
 byte updateRunningMode(bool linGeo, bool sinStrip);
 
 /// buzzer functions
@@ -75,7 +75,7 @@ void setup() {
   const int sPin = 2, nPin = 3, startPin = 4, wPin = 5, ePin = 6;
 
   /// toggles
-  const int focusPin = 14, linGeoPin = 15, expTestPin = 16;
+  const int focusPin = 16, linGeoPin = 17, expTestPin = 18;
 
   /// bounce2 aux array
   const int inputPins[8] = {sPin, nPin,
@@ -89,12 +89,15 @@ void setup() {
 
   // run things
   for (int i = 0; i < 8; i++) {
-    input[i].attach(inputPins[i], INPUT);
-    input[i].interval(25);
+    input[i].attach(inputPins[i], INPUT_PULLUP);
+    input[i].interval(100);
   }
   #ifdef LCD162
     lcd.begin(16,2);
-    lcd.print("retege v0.3");
+    lcd.setCursor(0,0);
+    lcd.print("A. B. Normal");
+    lcd.setCursor(0,1);
+    lcd.print("v1.0 revA");
     delay(2000);
     lcd.clear();
   #endif
@@ -124,7 +127,7 @@ void loop() {
   // update buttons
   for (int i = 0; i < 8; i++) {
     input[i].update();
-    if (input[i].fell() || input[i].rose()) {
+    if (input[i].rose() || input[i].fell()) {
       #ifdef LCD162
         lcd.clear();
       #endif
@@ -133,7 +136,7 @@ void loop() {
 
   // runningStatus main switch
   runningStatus = updateRunningStatus(runningStatus, runningStatusChanged,
-    input[START_BUTTON].rose(), input[FOCUS_TOGGLE].read(), rollingTime);
+    input[START_BUTTON].fell(), !input[FOCUS_TOGGLE].read(), rollingTime);
 
   switch (runningStatus) {
     case SETUP:
@@ -157,8 +160,8 @@ void loop() {
 
       // runningMode dependent
       newRunningMode = updateRunningMode(
-        input[LINEAR_GEOMETRIC_TOGGLE].read(),
-        input[EXPOSURE_TEST_TOGGLE].read());
+        !input[LINEAR_GEOMETRIC_TOGGLE].read(),
+        !input[EXPOSURE_TEST_TOGGLE].read());
 
       if (newRunningMode != runningMode) {
         runningMode = newRunningMode;
@@ -275,42 +278,38 @@ void loop() {
 
 bool buttonActive(int i) {
   static unsigned long holdInterval = 0;
-  static int holdMillis = 100;
+  static int baseInterval = 200;
+  static int holdMillis = baseInterval;
   bool y;
 
-  if(input[i].read() && input[i].duration()>=holdInterval*(holdMillis)) {
+  if(!input[i].read() && input[i].duration()>=holdInterval*(holdMillis)) {
     y = 1;
     holdInterval++;
+    lcd.clear();
   } else {
     y = 0;
   }
-
-  // it goes progressively faster when long pressed
-  for (byte k = 1; k < 5; k++) {
-    if (input[i].read() && input[i].duration()>k*1000) {
-      holdMillis = 100-(k*20);
-    }
-  }
-  if (input[i].fell()) {
+  
+  if (input[i].rose()) {
     holdInterval = 0;
-    holdMillis = 100;
+    holdMillis = baseInterval;
   }
   return y;
 }
 
 byte updateRunningStatus(byte runningStatus, bool & runningStatusChanged,
-  bool startRose, bool focusHigh, unsigned long rollingTime) {
+  bool startFell, bool focusHigh, unsigned long rollingTime) {
   byte newRunningStatus = runningStatus;
   switch (runningStatus) {
     case SETUP:
-      if (startRose) {
+      if (startFell) {
         newRunningStatus = EXPOSURE;
       } else if (focusHigh) {
         newRunningStatus = FOCUS;
       } 
       break;
     case EXPOSURE:
-      if (startRose || (rollingTime>0 && rollingTime<10)) {
+      if (startFell || (rollingTime>0 && rollingTime<10)) {
         newRunningStatus = SETUP;
       } 
       break;
