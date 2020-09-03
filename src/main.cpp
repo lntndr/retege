@@ -64,7 +64,7 @@
 // objects
 LiquidCrystal lcd(7, 8, 9, 10, 11, 12);
 Bounce * input = new Bounce[9];
-retege mTimer = retege();
+exposureTime mTimer = exposureTime();
 
 // function declarations
 bool buttonActive(int i);

@@ -18,7 +18,7 @@
 #include <math.h>
 #include <Arduino.h>
 
-class retege {
+class exposureTime {
     private:
         unsigned long baseTime;
         unsigned long reason;
@@ -29,8 +29,8 @@ class retege {
         int updatePrivate(int target, int val);
 
     public:
-        // Constructors
-        retege();
+        // Constructor
+        exposureTime();
 
         // Methods
         unsigned long evaluateTime(char runningMode);

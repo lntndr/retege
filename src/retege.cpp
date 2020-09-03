@@ -15,7 +15,7 @@
 
 #include "retege.h"
 
-retege::retege() {
+exposureTime::exposureTime() {
     baseTime = 5000;
     reason = 3;
     index = 1;
@@ -23,7 +23,7 @@ retege::retege() {
     stripDrt = 2000;
 }
 
-unsigned long retege::updatePrivate(unsigned long target, int val) {
+unsigned long exposureTime::updatePrivate(unsigned long target, int val) {
     unsigned long u = target;
     if ((long)target+val < 1) {
         u = 1;
@@ -33,11 +33,11 @@ unsigned long retege::updatePrivate(unsigned long target, int val) {
     return u;
 }
 
-int retege::updatePrivate(int target, int val) {
+int exposureTime::updatePrivate(int target, int val) {
     return target+val;
 }
-// Methods
-unsigned long retege::evaluateTime(char runningMode) {
+
+unsigned long exposureTime::evaluateTime(char runningMode) {
     unsigned long eval;
     switch (runningMode) {
         case 0: // LINEAR_EXPOSURE
@@ -58,51 +58,51 @@ unsigned long retege::evaluateTime(char runningMode) {
     }
     return eval;
 }
-unsigned long retege::getBaseTime() {
+unsigned long exposureTime::getBaseTime() {
     return baseTime;
 }
-unsigned long retege::getReason() {
+unsigned long exposureTime::getReason() {
     return reason;
 }
-unsigned long retege::getStripNbr() {
+unsigned long exposureTime::getStripNbr() {
     return stripNbr;
 }
-unsigned long retege::getStripDrt() {
+unsigned long exposureTime::getStripDrt() {
     return stripDrt;
 }
-char retege::getIndex() {
+char exposureTime::getIndex() {
     return index;
 }
-void retege::updateBaseTimeSeconds(bool plus, bool minus) {
+void exposureTime::updateBaseTimeSeconds(bool plus, bool minus) {
     if (plus) baseTime = updatePrivate(baseTime,1000);
     if (minus) baseTime = updatePrivate(baseTime,-1000);
     if (baseTime >= 99900) baseTime = 99900;
 }
-void retege::updateBaseTimeTenths(bool plus, bool minus) {
+void exposureTime::updateBaseTimeTenths(bool plus, bool minus) {
     if (plus) baseTime = updatePrivate(baseTime,100);
     if (minus) baseTime = updatePrivate(baseTime,-100);
     if (baseTime >= 99900) baseTime = 99900;
 }
-void retege::updateIndex(bool plus, bool minus) {
+void exposureTime::updateIndex(bool plus, bool minus) {
     if (plus) index = updatePrivate(index,1);
     if (minus) index = updatePrivate(index,-1);
 }
-void retege::updateReason(bool plus, bool minus) {
+void exposureTime::updateReason(bool plus, bool minus) {
     if (plus) reason = updatePrivate(reason,1);
     if (minus) reason = updatePrivate(reason,-1);
     if (reason >= 24) reason = 24;
 }
-void retege::updateStripDuration(bool plus, bool minus) {
+void exposureTime::updateStripDuration(bool plus, bool minus) {
     if (plus) stripDrt = updatePrivate(stripDrt,100);
     if (minus) stripDrt = updatePrivate(stripDrt,-100);
     if (stripDrt >= 50000) baseTime = 50000;
 }
-void retege::updateStripNumber(bool plus, bool minus) {
+void exposureTime::updateStripNumber(bool plus, bool minus) {
     if (plus) stripNbr = updatePrivate(stripNbr,1);
     if (minus) stripNbr = updatePrivate(stripNbr,-1);
     if (stripNbr >= 24) stripNbr = 24;
 }
-String retege::getLCD162SetupString(char runningMode) {
+String exposureTime::getLCD162SetupString(char runningMode) {
     String s = String();
     switch (runningMode) {
         case 0: // LINEAR_EXPOSURE
