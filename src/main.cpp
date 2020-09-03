@@ -49,15 +49,6 @@
 #define VOLUME_TOGGLE 8
 
 // pinout
-#define SOUTH_PIN 2
-#define NORTH_PIN 3
-#define START_PIN 4
-#define WEST_PIN 5
-#define EAST_PIN 6
-#define VOLUME_PIN 14
-#define FOCUS_PIN 16
-#define LINGEO_PIN 17
-#define EXPTES_PIN 18
 #define RELAY 15
 #define BUZZER 19
 
@@ -83,11 +74,16 @@ unsigned long playMetronome(unsigned long lampRefer, unsigned long ringCount,
 void setup() {
   // local variables
   /// buttons
+  const int sPin = 2, nPin = 3, startPin = 4, wPin = 5, ePin = 6;
+
+  /// toggles
+  const int volumePin = 14, focusPin = 16, linGeoPin = 17, expTestPin = 18;
+
   /// bounce2 aux array
-  const int inputPins[9] = {SOUTH_PIN, NORTH_PIN,
-                            WEST_PIN, EAST_PIN,
-                            START_PIN, FOCUS_PIN,
-                            LINGEO_PIN, EXPTES_PIN, VOLUME_PIN};
+  const int inputPins[9] = {sPin, nPin,
+                            wPin, ePin,
+                            startPin, focusPin,
+                            linGeoPin, expTestPin, volumePin};
 
   // declarations
   pinMode(RELAY,  OUTPUT);
