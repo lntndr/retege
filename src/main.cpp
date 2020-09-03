@@ -46,14 +46,24 @@
 #define FOCUS_TOGGLE 5
 #define LINEAR_GEOMETRIC_TOGGLE 6
 #define EXPOSURE_TEST_TOGGLE 7
+#define VOLUME_TOGGLE 8
 
 // pinout
+#define SOUTH_PIN 2
+#define NORTH_PIN 3
+#define START_PIN 4
+#define WEST_PIN 5
+#define EAST_PIN 6
+#define VOLUME_PIN 14
+#define FOCUS_PIN 16
+#define LINGEO_PIN 17
+#define EXPTES_PIN 18
 #define RELAY 15
 #define BUZZER 19
 
 // objects
 LiquidCrystal lcd(7, 8, 9, 10, 11, 12);
-Bounce * input = new Bounce[8];
+Bounce * input = new Bounce[9];
 retege mTimer = retege();
 
 // function declarations
@@ -65,30 +75,26 @@ byte updateRunningMode(bool linGeo, bool sinStrip);
 /// buzzer functions
 unsigned long playEndStrip(byte mode, unsigned long lampRefer,
   unsigned long ringCount);
-unsigned long playMetronome(unsigned long lampRefer, unsigned long ringCount);
+unsigned long playMetronome(unsigned long lampRefer, unsigned long ringCount, 
+  bool loud);
 
 // arduino functions
 
 void setup() {
   // local variables
   /// buttons
-  const int sPin = 2, nPin = 3, startPin = 4, wPin = 5, ePin = 6;
-
-  /// toggles
-  const int focusPin = 16, linGeoPin = 17, expTestPin = 18;
-
   /// bounce2 aux array
-  const int inputPins[8] = {sPin, nPin,
-                            wPin, ePin,
-                            startPin, focusPin,
-                            linGeoPin, expTestPin};
+  const int inputPins[9] = {SOUTH_PIN, NORTH_PIN,
+                            WEST_PIN, EAST_PIN,
+                            START_PIN, FOCUS_PIN,
+                            LINGEO_PIN, EXPTES_PIN, VOLUME_PIN};
 
   // declarations
   pinMode(RELAY,  OUTPUT);
   pinMode(BUZZER, OUTPUT);
 
   // run things
-  for (int i = 0; i < 8; i++) {
+  for (int i = 0; i < 9; i++) {
     input[i].attach(inputPins[i], INPUT_PULLUP);
     input[i].interval(100);
   }
@@ -125,7 +131,7 @@ void loop() {
   static unsigned long rollingTime = 0;     //
 
   // update buttons
-  for (int i = 0; i < 8; i++) {
+  for (int i = 0; i < 9; i++) {
     input[i].update();
     if (input[i].rose() || input[i].fell()) {
       #ifdef LCD162
@@ -237,7 +243,8 @@ void loop() {
             lcd.setCursor(0,1);
             lcd.print((float)rollingTime/1000.,1);
           #endif
-          ringCount = playMetronome(lampFirstMillis,ringCount);
+          ringCount = playMetronome(lampFirstMillis,ringCount,
+          !input[VOLUME_TOGGLE].read());
           break;
         case LINEAR_TEST:
         case GEOMETRIC_TEST:
@@ -261,7 +268,8 @@ void loop() {
         #endif
       }
       digitalWrite(RELAY,HIGH);
-      ringCount = playMetronome(lampFirstMillis,ringCount);
+      ringCount = playMetronome(lampFirstMillis,ringCount,
+        !input[VOLUME_TOGGLE].read());
       #ifdef LCD162
         lcd.setCursor(0,0);
         lcd.print("FOCUS");
@@ -375,9 +383,10 @@ unsigned long playEndStrip(byte mode, unsigned long lampRefer,
   return ringCount;
 }
 
-unsigned long playMetronome(unsigned long lampRefer, unsigned long ringCount) {
+unsigned long playMetronome(unsigned long lampRefer, unsigned long ringCount,
+  bool loud) {
   if (millis()>=lampRefer+ringCount*1000) { // buzz every second
-    tone(BUZZER, 987, 100);
+    if (loud) tone(BUZZER, 987, 100);
     ringCount++;
   }
   return ringCount;
