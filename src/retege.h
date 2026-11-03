@@ -27,6 +27,7 @@ class retege {
         unsigned long stripDrt;
         unsigned long updatePrivate(unsigned long target, int val);
         int updatePrivate(int target, int val);
+        unsigned long clampGeometric(float eval);
 
     public:
         // Constructors

@@ -36,6 +36,14 @@ unsigned long retege::updatePrivate(unsigned long target, int val) {
 int retege::updatePrivate(int target, int val) {
     return target+val;
 }
+
+unsigned long retege::clampGeometric(float eval) {
+    // clamp before the unsigned long cast: 0 ms wedges the exposure loop
+    // with the lamp on, oversized floats overflow the cast
+    if (eval < 100) eval = 100;
+    if (eval > 3600000) eval = 3600000; // one hour
+    return (unsigned long)eval;
+}
 // Methods
 unsigned long retege::evaluateTime(char runningMode) {
     unsigned long eval;
@@ -44,13 +52,15 @@ unsigned long retege::evaluateTime(char runningMode) {
             eval = baseTime;
             break;
         case 1: // GEOMETRIC_EXPOSURE
-            eval = baseTime*(pow((float)2,((float)index)/((float)reason)));
+            eval = clampGeometric(
+                baseTime*(pow((float)2,((float)index)/((float)reason))));
             break;
         case 2: // LINEAR_TEST
             eval = baseTime+(stripNbr*stripDrt);
             break;
         case 3: // GEOMETRIC_TEST
-            eval = baseTime*(pow((float)2,((float)stripNbr)/((float)reason)));
+            eval = clampGeometric(
+                baseTime*(pow((float)2,((float)stripNbr)/((float)reason))));
             break;
         default:
             eval = 0;
@@ -95,7 +105,7 @@ void retege::updateReason(bool plus, bool minus) {
 void retege::updateStripDuration(bool plus, bool minus) {
     if (plus) stripDrt = updatePrivate(stripDrt,100);
     if (minus) stripDrt = updatePrivate(stripDrt,-100);
-    if (stripDrt >= 50000) baseTime = 50000;
+    if (stripDrt >= 50000) stripDrt = 50000;
 }
 void retege::updateStripNumber(bool plus, bool minus) {
     if (plus) stripNbr = updatePrivate(stripNbr,1);

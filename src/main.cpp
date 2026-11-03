@@ -103,7 +103,8 @@ void setup() {
     lcd.setCursor(0,0);
     lcd.print("A. B. Normal");
     lcd.setCursor(0,1);
-    lcd.print("v1.0 revA");
+    //lcd.print("v1.0 revA");
+    lcd.print("v1.1 2026-06-12");
     delay(2000);
     lcd.clear();
   #endif
@@ -250,7 +251,8 @@ void loop() {
         case GEOMETRIC_TEST:
           #ifdef LCD162
             lcd.setCursor(0,1);
-            lcd.print(String(ringCount)+"/"+String(mTimer.getStripNbr())+" "+
+            // stripNbr+1 zones now that the zero step gets its own boundary
+            lcd.print(String(ringCount)+"/"+String(mTimer.getStripNbr()+1)+" "+
                       String((float)rollingTime/1000.,1));
           #endif
           ringCount = playEndStrip(runningMode, lampFirstMillis, ringCount);
@@ -317,9 +319,11 @@ byte updateRunningStatus(byte runningStatus, bool & runningStatusChanged,
       } 
       break;
     case EXPOSURE:
-      if (startFell || (rollingTime>0 && rollingTime<10)) {
+      // rollingTime==0 means the 1-9 ms window was overshot and the value
+      // got clamped; exiting on it keeps the lamp from staying on
+      if (startFell || rollingTime<10) {
         newRunningStatus = SETUP;
-      } 
+      }
       break;
     case FOCUS:
       if (!focusHigh) {
@@ -361,22 +365,28 @@ unsigned long playEndStrip(byte mode, unsigned long lampRefer,
 
   float rollingInterval;
 
+  // ringCount-1 puts the first boundary at plain baseTime (zero step),
+  // so the strips are base, base+1 step, ... base+stripNbr steps
   if (mode == LINEAR_TEST) {
-    rollingInterval = mTimer.getBaseTime() + mTimer.getStripDrt()*ringCount;
+    rollingInterval = mTimer.getBaseTime() + mTimer.getStripDrt()*(ringCount-1);
   } else if (mode == GEOMETRIC_TEST) {
-    rollingInterval = mTimer.getBaseTime() * 
-      pow(2,(1.*ringCount)/(1.*mTimer.getReason()));
+    rollingInterval = mTimer.getBaseTime() *
+      pow(2,(1.*(ringCount-1))/(1.*mTimer.getReason()));
   } else {
     return -1;
   }
 
-  if (millis()>= lampRefer - 100 + rollingInterval ) {
+  // integer comparison: float would lose ms precision past ~4.7h of uptime
+  unsigned long boundary = lampRefer + (unsigned long)rollingInterval;
+
+  if (millis() + 100 >= boundary ) {
     tone(BUZZER, 659, 95);
   }
 
-  if (millis() >= lampRefer - 5 + rollingInterval) {
-    // -5 us guarantees the double tone even for the last test strip when the 
-    // lamp turns off
+  if (millis() + 15 >= boundary) {
+    // 15 ms lead keeps this ahead of the <10 ms end-of-exposure window, so
+    // the confirm tone also sounds for the last boundary, when the lamp
+    // turns off
     tone(BUZZER, 880, 100);
     ringCount++;
   }
